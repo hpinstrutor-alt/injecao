@@ -168,14 +168,52 @@ button.warn.on{background:#ff5656;border-color:#ff5656;color:#210606}
   #controles{height:auto;max-height:none}
   #vered{font-size:13px}
 }
-/* celular em pe: pede para virar, senao nada fica legivel */
-#gire{display:none;position:fixed;inset:0;z-index:99;background:#0d131b;
-  color:#e9eff6;place-items:center;text-align:center;padding:30px;
-  font-family:"Segoe UI",Arial,sans-serif}
-#gire b{display:block;font-size:22px;margin-bottom:10px;color:#e11d2b}
-#gire span{display:block;font-size:15px;color:#92a2b6;line-height:1.5}
-#gire i{display:block;font-size:52px;margin-bottom:18px;font-style:normal}
-@media (max-width:820px) and (orientation:portrait){ #gire{display:grid} }
+/* ===== CELULAR EM PE =====
+   Nada de bloquear: em pe o quadro mostra um painel por vez (ver
+   barraPaineis no script) e o resto da tela empilha numa coluna so. */
+#gire{display:none!important}
+#paineis{display:none;gap:6px;padding:5px 12px 2px;overflow-x:auto;flex:none;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none}
+#paineis::-webkit-scrollbar{display:none}
+#paineis button{white-space:nowrap;flex:none;font-size:11px;padding:7px 11px;min-height:34px}
+@media (max-width:820px) and (orientation:portrait){
+  /* barra do topo: cabe o nome do modulo e mais nada */
+  #bar{gap:10px;padding:0 12px}
+  #subBar,#selo,#divisor,#logoTxt span,#btCfg{display:none}
+  #logoTxt b{font-size:13px;letter-spacing:1px}
+  #logo img{height:34px}
+  #tituloBar{font-size:12.5px;letter-spacing:.2px;line-height:1.25}
+
+  /* a tela do modulo rola; o quadro ganha altura de verdade
+     (ele era espremido a 82px pelos irmaos de altura fixa) */
+  #modulo{overflow-y:auto;overflow-x:hidden}
+  #abas{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  #abas::-webkit-scrollbar{display:none}
+  #abas button{white-space:nowrap;flex:none}
+  #paineis{display:flex}
+  #telaWrap{flex:none;height:82vw;min-height:270px;padding:0 10px}
+  canvas{touch-action:pan-y}            /* deixa rolar a pagina por cima do quadro */
+
+  /* leitura e controles numa coluna so */
+  #vered{grid-template-columns:1fr;margin:9px 10px 0}
+  #vered .cel{border-right:0;border-bottom:1px solid #1c2029}
+  #vered .cel:last-child{border-bottom:0}
+  #controles{grid-template-columns:1fr;height:auto;max-height:none;padding:10px 10px 16px}
+  .bloco{overflow:visible}
+  .btns{flex-wrap:wrap}
+  /* nome em cima, controle embaixo: na largura do celular nao cabe lado a lado */
+  .row{flex-wrap:wrap;gap:6px}
+  .row .nm{width:100%;flex:none}
+  .row .vl{min-width:0;text-align:left;flex:none}
+  .row input[type=range]{flex:1 1 55%}
+
+  /* home e cards */
+  #home{padding:20px 14px 36px}
+  #home h1{font-size:23px}
+  #home .lead{font-size:13px;margin-bottom:18px}
+  .grade{grid-template-columns:1fr}
+  .mod{min-height:0}
+}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d131b">
@@ -246,6 +284,8 @@ button.warn.on{background:#ff5656;border-color:#ff5656;color:#210606}
     <button class="aba sm" data-m="comp" data-a="sinal">OSCILOSCÓPIO</button>
     <button class="aba sm" data-m="comp" data-a="ciclo">CILINDROS</button>
   </div>
+
+  <div id="paineis"></div>
 
   <div id="telaWrap">
     <canvas id="cv"></canvas>
@@ -687,9 +727,17 @@ function arrumaControles(){
   }
   document.getElementById('vered').style.display=(teste||st.mod==='comp')?'none':'grid';
   var ctr=document.getElementById('controles');
-  ctr.style.height=teste?'176px':((st.mod==='comp')?'316px':'288px');
-  ctr.style.gridTemplateColumns=teste?'1fr':((st.mod==='comp')?'1.15fr 1.25fr 1.25fr 1.5fr 1.2fr':'1.15fr 1.35fr 1.5fr');
+  if(emPe()){ ctr.style.height='auto'; ctr.style.gridTemplateColumns='1fr'; }
+  else{
+    ctr.style.height=teste?'176px':((st.mod==='comp')?'316px':'288px');
+    ctr.style.gridTemplateColumns=teste?'1fr':((st.mod==='comp')?'1.15fr 1.25fr 1.25fr 1.5fr 1.2fr':'1.15fr 1.35fr 1.5fr');
+  }
 }
+/* girar o aparelho troca o layout dos controles e o tamanho do quadro */
+window.addEventListener('resize',function(){ arrumaControles(); });
+window.addEventListener('orientationchange',function(){
+  arrumaControles(); setTimeout(function(){ arrumaControles(); medir(); },120);
+});
 btVoltar.onclick=function(){
   fechaSimulador();
   elMod.classList.remove('on'); elHome.style.display='block';
@@ -1797,7 +1845,12 @@ function atualizaVeredito(){
 /* LAYOUTS                                                            */
 /* ================================================================== */
 var JANELAS=[];
+/* quando COLETA e uma lista, jan() so anota o nome e nao desenha nada:
+   e assim que descobrimos quais paineis a aba atual tem, sem precisar
+   repetir essa lista a mao em cada desenha*() */
+var COLETA=null;
 function jan(nome,fn,r){
+  if(COLETA){ COLETA.push(nome); return; }
   if(st.zoom){
     if(st.zoom!==nome) return;
     var alvo=[10,26,W-20,H-38];
@@ -4547,12 +4600,17 @@ function assinatura(){
 }
 function janCache(nome,fn,r,chave){
   var c=CACHE[nome];
-  var lw=Math.max(8,Math.ceil(r[2]*DPR)), lh=Math.max(8,Math.ceil(r[3]*DPR));
+  /* o painel pode estar ampliado (o contexto ja vem com escala): o
+     bitmap em cache tem que nascer no tamanho final, senao e desenhado
+     pequeno e esticado depois - borrado. Em pe isso e a vista normal. */
+  var mt=g.getTransform?g.getTransform():null;
+  var esc=mt?Math.min(6,Math.max(1,Math.abs(mt.a)/DPR)):1;
+  var lw=Math.max(8,Math.ceil(r[2]*DPR*esc)), lh=Math.max(8,Math.ceil(r[3]*DPR*esc));
   if(!c){ c=CACHE[nome]={cv:document.createElement('canvas'),k:null,w:0,h:0}; }
   if(c.w!==lw||c.h!==lh||c.k!==chave){
     c.cv.width=lw; c.cv.height=lh; c.w=lw; c.h=lh; c.k=chave;
     var cg=c.cv.getContext('2d');
-    cg.setTransform(DPR,0,0,DPR,0,0);
+    cg.setTransform(DPR*esc,0,0,DPR*esc,0,0);
     var ant=g; g=cg;
     fn([0,0,r[2],r[3]]);
     g=ant;
@@ -4598,18 +4656,58 @@ function montaRoda(R,dd){
   }
   rodaR=R; rodaDente=dd; rodaDPR=DPR;
 }
-function desenhaQuadro(){
-  if(simAberto) return;
-  if(fundoCv.width>4) g.drawImage(fundoCv,0,0,W,H);
-  else { g.fillStyle=BG; g.fillRect(0,0,W,H); }
-  if(st.aba==='testes'&&st.mod!=='comp'){ desenhaTestes(); return; }
-  JANELAS=[];
+/* ---- celular em pe: um painel por vez ---- */
+function emPe(){ return window.innerWidth<=820 && window.innerHeight>window.innerWidth; }
+var ERA_EM_PE=null, elPaineis=null, ASS_PAINEIS='', ASS_CTRL='';
+var NOME_PAINEL={
+  volante:'VOLANTE E CKP', entradas:'ENTRADAS', central:'CENTRAL (ECM)',
+  osciloscopio:'OSCILOSCÓPIO', saidas:'SAÍDAS', pistao:'PISTÃO',
+  regua:'RÉGUA DO CICLO', tempo:'TEMPO DO CICLO', estator:'ESTATOR',
+  regulador:'REGULADOR', bateria:'BATERIA', circuito:'CIRCUITO',
+  oscC:'OSCILOSCÓPIO', alim:'ALIMENTAÇÃO', medB:'MEDIÇÃO', oscB:'OSCILOSCÓPIO',
+  compB:'CADA REGIME', vazao:'VAZÃO', corte:'CORTE', colet:'COLETOR',
+  leitM:'LEITURA', oscM:'OSCILOSCÓPIO', compM:'CADA REGIME',
+  enerI:'ENERGIA', medI:'MEDIÇÃO', oscI:'OSCILOSCÓPIO', circI:'CIRCUITO',
+  compI:'CADA REGIME', motCp:'MOTOR', scoCp:'OSCILOSCÓPIO', verCp:'VEREDITO'
+};
+function rotuloPainel(n){ return NOME_PAINEL[n]||n.toUpperCase(); }
+/* roda os desenhos com jan() mudo, so para colher os nomes dos paineis */
+function listaPaineis(){
+  var zAnt=st.zoom;
+  COLETA=[]; st.zoom='__coleta__';     /* desliga tambem os cabecalhos */
+  try{ desenhaConteudo(); }catch(e){ COLETA=[]; }
+  var l=COLETA; COLETA=null; st.zoom=zAnt;
+  return l;
+}
+function barraPaineis(lista){
+  if(!elPaineis) elPaineis=document.getElementById('paineis');
+  if(!elPaineis) return;
+  var ass=lista.join('|')+'>'+(st.zoom||'');
+  if(ass===ASS_PAINEIS) return;
+  ASS_PAINEIS=ass;
+  elPaineis.innerHTML='';
+  for(var i=0;i<lista.length;i++)
+    (function(n){
+      var b=document.createElement('button');
+      b.className='sm'+(st.zoom===n?' on':'');
+      b.textContent=rotuloPainel(n);
+      b.onclick=function(){ st.zoom=n; sujar(); };
+      elPaineis.appendChild(b);
+    })(lista[i]);
+}
+function avisoDeitar(msg){
+  g.fillStyle=BG; g.fillRect(0,0,W,H);
+  var cx=W/2, cy=H/2;
+  txt('📱',cx,cy-210,'130px system-ui','#e11d2b','center');
+  txt('DEITE O CELULAR',cx,cy-40,'900 86px system-ui','#e11d2b','center');
+  txt(msg,cx,cy+70,'600 46px system-ui','#92a2b6','center');
+}
+function desenhaConteudo(){
   if(st.mod==='comp'){
     if(!st.zoom) cabecCp();
     if(st.aba==='sinal') desenhaScopeCp();
     else if(st.aba==='ciclo') desenhaCilindrosCp();
     else desenhaBancaCp();
-    botaoFechar();
     return;
   }
   if(st.mod==='ign'){
@@ -4638,6 +4736,37 @@ function desenhaQuadro(){
     else if(st.aba==='sinal') desenhaSinal();
     else desenhaCiclo();
   }
+}
+function desenhaQuadro(){
+  if(simAberto) return;
+  var pe=emPe();
+  if(pe!==ERA_EM_PE){ ERA_EM_PE=pe; st.zoom=null; ASS_PAINEIS=''; }
+  /* Os controles sao montados com estilo inline, que ganha de media query,
+     entao quem arruma e o JS. Conferir por assinatura aqui (e nao no evento
+     de resize) porque ao girar o aparelho innerWidth/innerHeight chegam
+     defasados: no quadro seguinte ja esta certo e isto se corrige sozinho. */
+  var assC=pe+'|'+st.mod+'|'+st.aba;
+  if(assC!==ASS_CTRL){ ASS_CTRL=assC; arrumaControles(); }
+  if(fundoCv.width>4) g.drawImage(fundoCv,0,0,W,H);
+  else { g.fillStyle=BG; g.fillRect(0,0,W,H); }
+
+  /* TESTES e um multimetro com duas pontas que o aluno arrasta sobre a
+     bancada: isso precisa de largura de verdade, nao adianta ampliar */
+  if(st.aba==='testes'&&st.mod!=='comp'){
+    if(pe){ barraPaineis([]); avisoDeitar('a bancada do multímetro precisa da tela larga'); return; }
+    desenhaTestes(); return;
+  }
+  JANELAS=[];
+  if(pe){
+    var lp=listaPaineis();
+    if(lp.length && lp.indexOf(st.zoom)<0) st.zoom=lp[0];
+    barraPaineis(lp);
+    JANELAS=[];
+    desenhaConteudo();      /* sem botaoFechar: quem navega e a barra */
+    return;
+  }
+  barraPaineis([]);
+  desenhaConteudo();
   botaoFechar();
 }
 window.__d1=function(){ var t=performance.now(); desenhaQuadro(); return performance.now()-t; };
@@ -4905,6 +5034,7 @@ document.getElementById('bSoltar').onclick=function(){ sujar(); st.pvOk=false; }
 /* clique numa janela amplia; clique em VOLTAR retorna */
 cv.addEventListener('pointerdown',function(ev){
   if(!elMod.classList.contains('on')||st.aba==='testes') return;
+  if(emPe()) return;        /* em pe ja esta ampliado; a barra e que troca */
   var p=coordCanvas(ev), i;
   for(i=JANELAS.length-1;i>=0;i--){
     var j=JANELAS[i], r=j.r;
