@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corpo de Borboleta e Avanço — Moto</title>
+<style>
+  :root{--bg:#0d131b;--panel:#18222f;--panel2:#1e2a39;--line:#2a3a4d;--fg:#e9eff6;
+        --mut:#92a2b6;--acc:#00b0ff;--fuel:#ffa528;--grn:#42d88c;--yel:#ffd640;--red:#ff5656}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+  header{padding:18px 26px 14px;border-bottom:3px solid var(--acc);background:var(--panel)}
+  h1{margin:0;font-size:22px}
+  header p{margin:6px 0 0;color:var(--mut);font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px}
+  canvas{width:100%;height:auto;display:block;border-radius:12px;background:#0b111a}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+        padding:16px 18px;margin-top:16px}
+  .card h3{margin:0 0 4px;font-size:13px;letter-spacing:1.2px;color:var(--mut);
+           text-transform:uppercase}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .val{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;margin:14px 0 10px;accent-color:var(--acc);height:40px;
+                    -webkit-appearance:none;background:transparent;touch-action:none}
+  input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:7px;
+    background:linear-gradient(#2c3a4c,#22303f)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:38px;height:38px;
+    border-radius:50%;background:var(--acc);border:3px solid #0d131b;margin-top:-12px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-track{height:14px;border-radius:7px;background:#2c3a4c}
+  input[type=range]::-moz-range-thumb{width:34px;height:34px;border:3px solid #0d131b;
+    border-radius:50%;background:var(--acc)}
+  .presets{display:flex;gap:10px;flex-wrap:wrap}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+         border-radius:10px;padding:14px 20px;font-size:16px;cursor:pointer;font-weight:600;
+         min-height:52px;touch-action:manipulation}
+  button:hover{border-color:var(--acc)}
+  footer{color:#5a6472;font-size:12px;padding:8px 26px 26px;text-align:center}
+  #semjs{background:#3a2a0c;border:2px solid var(--fuel);color:#ffd9a0;border-radius:12px;
+         padding:22px;font-size:16px;line-height:1.6;margin-bottom:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Corpo de borboleta e avanço de ignição — moto</h1>
+  <p>Monocilíndrica 160 cc com injeção eletrônica. Abra a borboleta e acompanhe o ar e o ponto.</p>
+</header>
+
+<div class="wrap">
+  <div id="semjs">
+    <b>Esta página não está rodando.</b><br>
+    Você abriu o arquivo por um visualizador que bloqueia animações.<br><br>
+    <b>Abra assim:</b> salve em <i>Downloads</i> &rarr; abra o <b>Chrome</b> &rarr;
+    menu <b>⋮</b> &rarr; <b>Downloads</b> &rarr; toque no arquivo.
+  </div>
+
+  <canvas id="cv" width="1200" height="520"></canvas>
+
+  <div class="card">
+    <h3>Abertura da borboleta (TPS)</h3>
+    <div class="row"><span class="val" id="vT">0 %</span><span id="vTag" style="font-size:15px"></span></div>
+    <input type="range" id="sT" min="0" max="100" step="1" value="0">
+    <div class="presets">
+      <button data-t="0">0 %</button>
+      <button data-t="25">25 %</button>
+      <button data-t="50">50 %</button>
+      <button data-t="75">75 %</button>
+      <button data-t="100">100 %</button>
+    </div>
+    <label style="display:flex;align-items:center;gap:12px;font-size:15px;margin-top:14px;
+                  cursor:pointer;min-height:46px">
+      <input type="checkbox" id="cFalha" style="width:26px;height:26px;accent-color:#00b0ff">
+      Simular trecho morto no TPS (falha entre 30% e 42%)
+    </label>
+  </div>
+</div>
+<footer>HP Instrutor · Injeção Eletrônica</footer>
+
+<script>
+(function(){
+  var cv=document.getElementById('cv'), g=cv.getContext('2d');
+  var st={T:0,N:1400,f:0,falha:false,buf:[],BUF:200};
+  var C={panel:'#18222f',line:'#2a3a4d',fg:'#e9eff6',mut:'#92a2b6',acc:'#00b0ff',
+         fuel:'#ffa528',grn:'#42d88c',yel:'#ffd640',red:'#ff5656',metal:'#9ca8b8',
+         metalL:'#c6d0de',ar:'#60c8ff'};
+
+  function avancoBase(N){
+    if(N<1600) return 10;
+    if(N<3000) return 10+(N-1600)/1400*16;
+    if(N<5000) return 26+(N-3000)/2000*8;
+    if(N<7000) return 34+(N-5000)/2000*4;
+    return 38;
+  }
+  function calc(){
+    var T=st.T, N=st.N;
+    var ve=0.18+0.72*Math.pow(T/100,0.7);          // eficiencia volumetrica
+    var ar=0.160*(N/2)*ve;                          // litros por minuto
+    var volt=0.55+T/100*3.75;
+    var falhou=false;
+    if(st.falha && T>=30 && T<=42){ volt=0.30; falhou=true; }   // trecho morto
+    var lido=Math.max(0,(volt-0.55)/3.75*100);      // o que a ECU entende
+    var av=avancoBase(N)-9*(lido/100);
+    return {ar:ar,av:av,volt:volt,ab:T/100,ve:ve,lido:lido,falhou:falhou};
+  }
+  function rr(x,y,w,h,r,fill,stroke,lw){
+    g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);
+    g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();
+    if(fill){g.fillStyle=fill;g.fill();}
+    if(stroke){g.strokeStyle=stroke;g.lineWidth=lw||2;g.stroke();}
+  }
+  function txt(s,x,y,size,color,align,bold,mono){
+    g.font=(bold?'700 ':'')+size+'px '+(mono?'ui-monospace,Consolas,monospace':'Segoe UI,Arial,sans-serif');
+    g.fillStyle=color;g.textAlign=align||'left';g.textBaseline='top';g.fillText(s,x,y);
+  }
+  var rad=function(d){return d*Math.PI/180;};
+
+  function corpo(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('CORPO DE BORBOLETA EM CORTE',x0+16,y0+14,13,C.mut,'left',true);
+    var dx0=x0+40, dx1=x0+w-40, cy=y0+h/2+6, R=92;   // duto
+    // paredes
+    g.fillStyle='#131c26';g.fillRect(dx0,cy-R,dx1-dx0,2*R);
+    g.fillStyle='#2b3746';
+    g.fillRect(dx0,cy-R-22,dx1-dx0,22);g.fillRect(dx0,cy+R,dx1-dx0,22);
+    g.strokeStyle=C.metal;g.lineWidth=3;
+    g.beginPath();g.moveTo(dx0,cy-R);g.lineTo(dx1,cy-R);g.moveTo(dx0,cy+R);g.lineTo(dx1,cy+R);g.stroke();
+    txt('DO FILTRO DE AR',dx0+4,cy-R-44,13,C.mut,'left',true);
+    txt('PARA O MOTOR',dx1-4,cy-R-44,13,C.mut,'right',true);
+
+    // fluxo de ar
+    var ab=m.ab, n=Math.round(16+84*ab), sp=1.6+7*ab;
+    var spread=(R-14)*(0.10+0.90*Math.pow(ab,0.6));
+    g.fillStyle=C.ar;
+    var h1=function(k){var v=Math.sin(k*12.9898)*43758.5453;return v-Math.floor(v);};
+    for(var i=0;i<n;i++){
+      var u=((h1(i)+st.f*sp*0.0016)%1);
+      var x=dx0+6+u*(dx1-dx0-12);
+      var lane=h1(i+91.7)-0.5;
+      var y=cy+lane*2*spread;
+      var r=1.4+2.2*ab;
+      g.globalAlpha=0.45+0.5*ab;
+      g.beginPath();g.arc(x,y,r,0,6.283);g.fill();
+    }
+    g.globalAlpha=1;
+    // setas de entrada
+    g.strokeStyle='rgba(96,200,255,'+(0.3+0.6*ab)+')';g.lineWidth=3;
+    for(var k=-1;k<=1;k++){
+      var yy=cy+k*46;
+      g.beginPath();g.moveTo(dx0-30,yy);g.lineTo(dx0-6,yy);g.stroke();
+      g.beginPath();g.moveTo(dx0-14,yy-6);g.lineTo(dx0-6,yy);g.lineTo(dx0-14,yy+6);g.stroke();
+    }
+
+    // borboleta
+    var bx=(dx0+dx1)/2, ang=rad(88-m.ab*80);
+    g.strokeStyle='#c3ccd9';g.lineWidth=13;g.lineCap='round';
+    g.beginPath();
+    g.moveTo(bx-Math.cos(ang)*(R-6),cy-Math.sin(ang)*(R-6));
+    g.lineTo(bx+Math.cos(ang)*(R-6),cy+Math.sin(ang)*(R-6));
+    g.stroke();g.lineCap='butt';
+    g.fillStyle=C.metalL;g.beginPath();g.arc(bx,cy,9,0,6.283);g.fill();
+    txt('borboleta',bx-104,cy-R+14,13,C.mut,'right',true);
+
+    // sensor TPS no eixo
+    var tx=bx+150;
+    g.strokeStyle='#6b7686';g.lineWidth=6;
+    g.beginPath();g.moveTo(bx,cy+R+2);g.lineTo(bx,cy+R+34);g.lineTo(tx,cy+R+34);g.stroke();
+    var cTps=m.falhou?C.red:C.acc;
+    rr(tx,cy+R+8,116,52,8,'#22303f',cTps,2);
+    txt('TPS',tx+58,cy+R+16,15,cTps,'center',true);
+    txt(m.volt.toFixed(2).replace('.',',')+' V',tx+58,cy+R+36,14,
+        m.falhou?C.red:C.fg,'center',true,true);
+  }
+
+  function osc(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('OSCILOSCÓPIO — SINAL DO TPS',x0+16,y0+12,13,C.mut,'left',true);
+    txt(m.volt.toFixed(2).replace('.',',')+' V',x0+w-16,y0+10,17,
+        m.falhou?C.red:C.acc,'right',true,true);
+    var gx0=x0+46,gx1=x0+w-16,gy0=y0+36,gy1=y0+h-16;
+    rr(gx0,gy0,gx1-gx0,gy1-gy0,6,'#0a1612','#223c32',2);
+    var Y=function(v){return gy1-6-v/5*(gy1-gy0-12);};
+    g.strokeStyle='#18302a';g.lineWidth=1;
+    for(var k=1;k<10;k++){var x=gx0+k*(gx1-gx0)/10;g.beginPath();g.moveTo(x,gy0);g.lineTo(x,gy1);g.stroke();}
+    for(var v=1;v<5;v++){g.beginPath();g.moveTo(gx0,Y(v));g.lineTo(gx1,Y(v));g.stroke();}
+    txt('5 V',gx0-8,gy0,11,C.mut,'right');txt('0 V',gx0-8,gy1-14,11,C.mut,'right');
+    // faixas de referencia
+    g.strokeStyle='rgba(255,214,64,.5)';g.setLineDash([5,5]);g.lineWidth=2;
+    g.beginPath();g.moveTo(gx0,Y(0.55));g.lineTo(gx1,Y(0.55));g.stroke();
+    g.beginPath();g.moveTo(gx0,Y(4.30));g.lineTo(gx1,Y(4.30));g.stroke();
+    g.setLineDash([]);
+    txt('fechada 0,55 V',gx1-6,Y(0.55)-17,11,C.yel,'right');
+    txt('aberta 4,30 V',gx1-6,Y(4.30)-17,11,C.yel,'right');
+    // traço gravado
+    var b=st.buf, n=b.length;
+    g.strokeStyle=C.grn;g.lineWidth=3;g.beginPath();
+    for(var i=0;i<n;i++){
+      var x=gx0+4+i/(st.BUF-1)*(gx1-gx0-8), y=Y(b[i]);
+      i===0?g.moveTo(x,y):g.lineTo(x,y);
+    }
+    g.stroke();
+    if(n>0){
+      var lx=gx0+4+(n-1)/(st.BUF-1)*(gx1-gx0-8);
+      g.fillStyle=m.falhou?C.red:C.grn;
+      g.beginPath();g.arc(lx,Y(b[n-1]),5,0,6.283);g.fill();
+    }
+    if(m.falhou) txt('QUEDA NO SINAL — TRECHO MORTO',(gx0+gx1)/2,gy0+8,13,C.red,'center',true);
+  }
+
+  function cartao(x0,y0,w,h,titulo,valor,unidade,cor,frac,rodape){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt(titulo,x0+18,y0+14,13,C.mut,'left',true);
+    txt(valor,x0+18,y0+40,44,cor,'left',true,true);
+    txt(unidade,x0+w-18,y0+58,16,C.mut,'right');
+    if(frac!==null){
+      rr(x0+18,y0+h-40,w-36,16,8,'#26303e');
+      rr(x0+18,y0+h-40,(w-36)*Math.max(0.01,Math.min(1,frac)),16,8,cor);
+    }
+    if(rodape) txt(rodape,x0+18,y0+h-64,13,C.mut);
+  }
+
+  function painelAvanco(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('AVANÇO DE IGNIÇÃO',x0+18,y0+14,13,C.mut,'left',true);
+    var cx=x0+w/2, cy=y0+h-32, R=Math.min(w/2-34,h-176);
+    var a0=180, a1=0;
+    var P=function(a,r){return [cx+r*Math.cos(rad(a)), cy-r*Math.sin(rad(a))];};
+    g.strokeStyle='#33445a';g.lineWidth=3;
+    g.beginPath();g.arc(cx,cy,R,rad(-a0),rad(-a1));g.stroke();
+    for(var d=0;d<=40;d+=10){
+      var a=a0+(a1-a0)*d/40, p1=P(a,R), p2=P(a,R-12);
+      g.strokeStyle='#5c7085';g.lineWidth=2;
+      g.beginPath();g.moveTo(p1[0],p1[1]);g.lineTo(p2[0],p2[1]);g.stroke();
+      var l=P(a,R+18);txt(d+'°',l[0],l[1]-7,12,'#7f90a6','center');
+    }
+    var an=a0+(a1-a0)*Math.min(1,m.av/40), pn=P(an,R-16);
+    g.strokeStyle=C.yel;g.lineWidth=6;
+    g.beginPath();g.moveTo(cx,cy);g.lineTo(pn[0],pn[1]);g.stroke();
+    g.fillStyle='#5f6c7f';g.beginPath();g.arc(cx,cy,11,0,6.283);g.fill();
+    txt(m.av.toFixed(1).replace('.',',')+'°',cx,y0+38,40,C.yel,'center',true,true);
+    txt('antes do PMS',cx,y0+86,14,C.mut,'center');
+    txt('quem manda no avanço é a rotação',cx,y0+h-16,12,C.mut,'center');
+    txt(Math.round(st.N/50)*50+' rpm',x0+w-18,y0+14,14,C.grn,'right',true,true);
+  }
+
+  function layout(){
+    var estreito=window.innerWidth<980;
+    var W=estreito?820:1200, H=estreito?1068:520;
+    if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}
+    return estreito
+      ? {W:W,H:H,corpo:[16,16,788,360],osc:[16,388,788,170],ar:[16,574,788,150],
+         av:[16,740,788,312]}
+      : {W:W,H:H,corpo:[16,16,760,330],osc:[16,358,760,146],ar:[792,16,392,150],
+         av:[792,182,392,322]};
+  }
+
+  function frame(){
+    var alvo=1400+7600*Math.pow(st.T/100,0.95);
+    st.N+=(alvo-st.N)*0.045;
+    st.f+=1;
+    var m=calc();
+    if(st.f%2===0){ st.buf.push(m.volt); if(st.buf.length>st.BUF) st.buf.shift(); }
+    var L=layout(), aviso=document.getElementById('semjs');
+    if(aviso) aviso.style.display='none';
+    g.fillStyle='#0b111a';g.fillRect(0,0,L.W,L.H);
+    corpo(m,L.corpo[0],L.corpo[1],L.corpo[2],L.corpo[3]);
+    osc(m,L.osc[0],L.osc[1],L.osc[2],L.osc[3]);
+    var cor=m.ab<0.15?C.acc:(m.ab<0.6?C.grn:C.fuel);
+    cartao(L.ar[0],L.ar[1],L.ar[2],L.ar[3],'AR ENTRANDO NO MOTOR',
+           Math.round(m.ar)+'','litros por minuto',cor,m.ar/650,null);
+    painelAvanco(m,L.av[0],L.av[1],L.av[2],L.av[3]);
+    requestAnimationFrame(frame);
+  }
+
+  var sT=document.getElementById('sT');
+  function sync(){
+    st.T=+sT.value;
+    document.getElementById('vT').textContent=st.T+' %';
+    var e=document.getElementById('vTag');
+    if(st.T<=3){e.textContent='borboleta fechada — marcha lenta';e.style.color='#00b0ff';}
+    else if(st.T<=35){e.textContent='pouca abertura';e.style.color='#42d88c';}
+    else if(st.T<=75){e.textContent='meia aceleração';e.style.color='#ffd640';}
+    else {e.textContent='acelerador todo aberto';e.style.color='#ffa528';}
+  }
+  var cF=document.getElementById('cFalha');
+  cF.addEventListener('change',function(){st.falha=cF.checked;});
+  sT.addEventListener('input',sync);
+  var bs=document.querySelectorAll('button[data-t]');
+  for(var i=0;i<bs.length;i++)(function(b){
+    b.onclick=function(){sT.value=b.getAttribute('data-t');sync();};
+  })(bs[i]);
+  sync();frame();
+})();
+</script>
+</body>
+</html>

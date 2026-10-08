@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador — Bomba e Pressão de Linha</title>
+<style>
+  :root{
+    --bg:#0d131b; --panel:#18222f; --panel2:#1e2a39; --line:#2a3a4d;
+    --fg:#e9eff6; --mut:#92a2b6; --acc:#00b0ff; --fuel:#ffa528;
+    --grn:#42d88c; --yel:#ffd640; --red:#ff5656;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+  header{padding:18px 26px 14px;border-bottom:3px solid var(--acc);background:var(--panel)}
+  h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header p{margin:6px 0 0;color:var(--mut);font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px}
+  canvas{width:100%;height:auto;display:block;border-radius:12px;background:#0b111a}
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+            gap:14px;margin-top:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card h3{margin:0 0 4px;font-size:13px;letter-spacing:1.2px;color:var(--mut);
+           text-transform:uppercase}
+  .val{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;margin:14px 0 8px;accent-color:var(--acc);height:38px;
+                    -webkit-appearance:none;background:transparent;touch-action:none}
+  input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;
+    background:linear-gradient(#2c3a4c,#22303f)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;
+    border-radius:50%;background:var(--acc);border:3px solid #0d131b;margin-top:-11px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:#2c3a4c}
+  input[type=range]::-moz-range-thumb{width:30px;height:30px;border:3px solid #0d131b;
+    border-radius:50%;background:var(--acc)}
+  .presets{display:flex;gap:8px;flex-wrap:wrap}
+  .playbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);
+           border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  button.big{font-size:17px;padding:14px 22px;min-height:56px;min-width:150px}
+  .tlab{font:700 17px ui-monospace,Consolas,monospace;color:var(--acc);min-width:150px;
+        text-align:right}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+         border-radius:10px;padding:12px 16px;font-size:15px;cursor:pointer;font-weight:600;
+         min-height:46px;touch-action:manipulation}
+  button:hover{border-color:var(--acc)}
+  button.on{background:#003b5c;border-color:var(--acc);color:#bfe9ff}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .hint{color:var(--mut);font-size:12px;margin-top:8px;line-height:1.45}
+  label.chk{display:flex;align-items:center;gap:12px;font-size:15px;cursor:pointer;
+            margin-top:10px;padding:8px 0;min-height:46px}
+  input[type=checkbox]{width:26px;height:26px;accent-color:var(--acc)}
+  footer{color:#5a6472;font-size:12px;padding:6px 26px 26px;text-align:center}
+  #semjs{background:#3a2a0c;border:2px solid var(--fuel);color:#ffd9a0;border-radius:12px;
+         padding:22px;font-size:16px;line-height:1.6;margin-bottom:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Bomba e pressão de linha — o que a pressão faz com a mistura</h1>
+  <p>A vazão do bico não acompanha a pressão em linha reta: ela segue a raiz quadrada da pressão diferencial.</p>
+</header>
+
+<div class="wrap">
+  <div class="playbar">
+    <button id="bPlay" class="big on">PAUSAR</button>
+    <button id="bRst" class="big">&#9198;&nbsp; REINICIAR</button>
+    <span id="tLab" class="tlab">bomba girando</span>
+  </div>
+  <div id="semjs">
+    <b>Esta página não está rodando.</b><br>
+    Você abriu o arquivo por um visualizador que bloqueia animações.<br><br>
+    <b>Abra assim:</b> salve o arquivo em <i>Downloads</i> &rarr; abra o <b>Chrome</b> &rarr;
+    menu <b>⋮</b> &rarr; <b>Downloads</b> &rarr; toque no arquivo.
+  </div>
+  <canvas id="cv" width="1200" height="600"></canvas>
+
+  <div class="controls">
+    <div class="card">
+      <h3>Regime do motor</h3>
+      <div class="row"><span class="val" id="vReg">MARCHA LENTA</span><span class="hint" id="regTag"></span></div>
+      <div class="presets" style="margin-top:12px">
+        <button class="rg on" data-r="lenta">Marcha lenta</button>
+        <button class="rg" data-r="cruz">Cruzeiro</button>
+        <button class="rg" data-r="plena">Plena carga</button>
+      </div>
+      <div class="hint">O regime muda duas coisas ao mesmo tempo: quanto combustível o motor pede
+        da bomba e quanto vácuo existe no coletor — e o vácuo entra na conta da pressão diferencial.</div>
+    </div>
+
+    <div class="card">
+      <h3>Restrição do filtro / linha</h3>
+      <div class="row"><span class="val" id="vFil">0 %</span><span class="hint" id="filTag"></span></div>
+      <input type="range" id="sFil" min="0" max="95" step="1" value="0">
+      <div class="presets">
+        <button data-f="0">Filtro novo</button>
+        <button data-f="60">Sujo</button>
+        <button data-f="85">Entupido</button>
+      </div>
+      <div class="hint">A perda de carga do filtro cresce com o <b>quadrado</b> da vazão. Por isso
+        filtro entupido dá pressão normal na lenta e derruba tudo em carga.</div>
+    </div>
+
+    <div class="card">
+      <h3>Bomba</h3>
+      <div class="row"><span class="val" id="vBom">BOA</span><span class="hint" id="bomTag"></span></div>
+      <input type="range" id="sBom" min="40" max="100" step="1" value="100">
+      <div class="presets">
+        <button data-b="100">Bomba boa</button>
+        <button data-b="70">Desgastada</button>
+        <button data-b="50">Fraca</button>
+      </div>
+      <div class="hint">Bomba gasta perde pressão de fechamento e vazão livre. O sintoma clássico:
+        anda bem na cidade e falha quando abre o acelerador.</div>
+    </div>
+
+    <div class="card">
+      <h3>Regulador de pressão</h3>
+      <div class="row"><span class="val" id="vRegu">3,0 bar</span><span class="hint" id="reguTag"></span></div>
+      <input type="range" id="sRegu" min="1" max="45" step="1" value="30">
+      <div class="presets">
+        <button data-g="30">Normal 3,0 bar</button>
+        <button data-g="15">Travado aberto</button>
+        <button data-g="42">Retorno preso</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="cRef">
+        Regulador referenciado ao vácuo do coletor (sistema com retorno)</label>
+      <div class="hint">Sem referência (sistema sem retorno, o mais comum em moto), a pressão é fixa
+        contra a atmosfera — então o vácuo do coletor muda a diferencial sozinho.</div>
+    </div>
+
+    <div class="card">
+      <h3>Central</h3>
+      <label class="chk"><input type="checkbox" id="cTrim" checked>
+        Correção em malha fechada pela sonda (limite ±25 %)</label>
+      <div class="presets" style="margin-top:10px">
+        <button id="bReset">Voltar ao padrão</button>
+      </div>
+      <div class="hint">A sonda deixa a central corrigir o tempo de injeção até o limite do trim.
+        Passou disso, a mistura fica errada de verdade e a luz acende.</div>
+    </div>
+  </div>
+</div>
+<footer>HP Instrutor · Injeção Eletrônica — modelo didático: Q<sub>bico</sub> &prop; &radic;&Delta;P ·
+  perda do filtro &prop; Q² · curva da bomba P = P<sub>0</sub>(1 − Q/Q<sub>0</sub>)</footer>
+
+<script>
+(function(){
+  const cv = document.getElementById('cv'), g = cv.getContext('2d');
+  const C={bg:'#0b111a',panel:'#18222f',panel2:'#1e2a39',line:'#2a3a4d',fg:'#e9eff6',
+           mut:'#92a2b6',acc:'#00b0ff',fuel:'#ffa528',grn:'#42d88c',yel:'#ffd640',red:'#ff5656',
+           metal:'#9ca8b8',metalL:'#c6d0de'};
+
+  /* ---------- dados de referência ----------
+     Pressões em bar relativos à atmosfera. Regulação típica de moto: 3,0 bar.
+     Pressão absoluta no coletor por regime (atm = 1,013 bar).                     */
+  const P_ATM = 1.013;
+  const REGIMES = {
+    lenta:{nome:'MARCHA LENTA', rpm:1400, mapAbs:0.30, consumo:0.7,  carga:'borboleta fechada'},
+    cruz: {nome:'CRUZEIRO',     rpm:5000, mapAbs:0.55, consumo:2.6,  carga:'carga parcial'},
+    plena:{nome:'PLENA CARGA',  rpm:8500, mapAbs:0.95, consumo:7.2,  carga:'borboleta aberta'}
+  };
+  const P_REG_NOM = 3.0;      /* bar   — regulação de referência          */
+  const Q0_BOM    = 62;       /* L/h   — vazão livre da bomba nova        */
+  const P0_BOM    = 5.6;      /* bar   — pressão de fechamento da bomba   */
+  const K_FIL     = 0.0019;   /* bar/(L/h)² — perda do filtro limpo       */
+  const TRIM_MAX  = 0.25;     /* ±25 % de correção da malha fechada       */
+
+  const st = {reg:'lenta', fil:0, bom:100, regu:30, ref:false, trim:true, play:true, t:0};
+
+  /* ---------- modelo ---------- */
+  function modelo(){
+    const R = REGIMES[st.reg];
+    const pReg = st.regu/10;                       /* bar */
+    const saude = st.bom/100;
+    const Q = R.consumo;                           /* L/h pedidos pelo motor */
+
+    /* bomba: reta P = P0·(1 − Q/Q0), degradada pela saúde */
+    const P0 = P0_BOM*saude, Q0 = Q0_BOM*saude;
+    const pBomba = Math.max(0, P0*(1 - Q/Q0));
+
+    /* filtro: perda de carga proporcional ao QUADRADO da vazão */
+    const aLivre = Math.max(0.05, 1-st.fil/100);
+    const kFil = K_FIL/(aLivre*aLivre);      /* area cai -> velocidade sobe -> perda ao quadrado */
+    const perdaFiltro = kFil*Q*Q;
+
+    /* o trilho recebe o que sobra, limitado pelo regulador */
+    const pDisponivel = Math.max(0, pBomba - perdaFiltro);
+    const pTrilho = Math.min(pReg, pDisponivel);
+    const limitadoPelaBomba = pDisponivel < pReg - 0.005;
+
+    /* pressão diferencial que o bico realmente enxerga */
+    const pColetor = R.mapAbs - P_ATM;             /* negativo = vácuo */
+    const dP = st.ref ? pTrilho : (pTrilho - pColetor);
+    const dPnom = st.ref ? P_REG_NOM : (P_REG_NOM - pColetor);
+
+    /* vazão do bico segue a RAIZ da diferencial */
+    const vaz = dP > 0 ? Math.sqrt(dP/dPnom) : 0;
+
+    /* a central corrige pelo trim, até o limite */
+    let trimPedido = vaz > 0 ? (1/vaz - 1) : 9;
+    let trimAplicado = 0;
+    if(st.trim) trimAplicado = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimPedido));
+    const entregue = vaz*(1+trimAplicado);
+    const lambda = entregue > 0.02 ? 1/entregue : 9;
+
+    return {R, pReg, Q, pBomba, perdaFiltro, pDisponivel, pTrilho, limitadoPelaBomba,
+            pColetor, dP, dPnom, vaz, trimPedido, trimAplicado, entregue, lambda,
+            noLimite: st.trim && Math.abs(trimPedido) > TRIM_MAX};
+  }
+
+  /* ---------- helpers ---------- */
+  function rr(x,y,w,h,r,fill,stroke,lw){
+    g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r);
+    g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+    if(fill){g.fillStyle=fill; g.fill();}
+    if(stroke){g.strokeStyle=stroke; g.lineWidth=lw||2; g.stroke();}
+  }
+  function txt(s,x,y,size,color,align,bold,mono){
+    g.font=(bold?'700 ':'')+size+'px '+(mono?'ui-monospace,Consolas,monospace':'Segoe UI,Arial,sans-serif');
+    g.fillStyle=color; g.textAlign=align||'left'; g.textBaseline='top'; g.fillText(s,x,y);
+  }
+  function corPressao(p){ return p>=2.6?C.grn : (p>=1.9?C.yel : C.red); }
+
+  /* ---------- circuito hidráulico ---------- */
+  function drawCircuito(m,t,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('CIRCUITO DE COMBUSTÍVEL',x0+14,y0+12,13,C.mut,'left',true);
+    txt(m.R.nome+' · '+m.R.rpm+' rpm · '+m.R.carga,x0+w-14,y0+12,12,C.acc,'right',true);
+
+    const yLinha = y0+120, xs = x0+30;
+    /* --- tanque --- */
+    rr(xs,yLinha-46,86,92,8,'#131c27',C.line,1.5);
+    const nivel = 0.62;
+    rr(xs+6,yLinha-40+ (80*(1-nivel)),74,80*nivel,5,'#26313f');
+    g.fillStyle=C.fuel; g.globalAlpha=.55;
+    rr(xs+6,yLinha-40+(80*(1-nivel)),74,80*nivel,5,C.fuel); g.globalAlpha=1;
+    txt('TANQUE',xs+43,yLinha+52,11,C.mut,'center',true);
+
+    /* --- bomba --- */
+    const xb = xs+126;
+    const girando = st.play;
+    rr(xb,yLinha-40,80,80,10,'#1a2431',C.line,1.5);
+    g.save(); g.translate(xb+40,yLinha); g.rotate(girando? t*6 : 0);
+    for(let i=0;i<6;i++){
+      g.rotate(Math.PI/3);
+      g.beginPath(); g.moveTo(0,0); g.lineTo(24,0);
+      g.strokeStyle = st.bom>=85?C.grn:(st.bom>=60?C.yel:C.red);
+      g.lineWidth=4; g.stroke();
+    }
+    g.restore();
+    g.beginPath(); g.arc(xb+40,yLinha,7,0,6.2832); g.fillStyle=C.metalL; g.fill();
+    txt('BOMBA',xb+40,yLinha+52,11,C.mut,'center',true);
+    txt(st.bom+' %',xb+40,yLinha-58,13,st.bom>=85?C.grn:(st.bom>=60?C.yel:C.red),'center',true,true);
+
+    /* --- filtro --- */
+    const xf = xb+126;
+    rr(xf,yLinha-34,74,68,8,'#1a2431',C.line,1.5);
+    const suj = st.fil/100;
+    for(let i=0;i<9;i++){
+      const fx = xf+10+i*7;
+      g.beginPath(); g.moveTo(fx,yLinha-24); g.lineTo(fx,yLinha+24);
+      g.strokeStyle = i/9 < suj ? '#6b4a12' : '#33404f'; g.lineWidth=4; g.stroke();
+    }
+    txt('FILTRO',xf+37,yLinha+46,11,C.mut,'center',true);
+    txt('−'+m.perdaFiltro.toFixed(2)+' bar',xf+37,yLinha-56,12,
+        m.perdaFiltro>0.4?C.red:(m.perdaFiltro>0.15?C.yel:C.mut),'center',true,true);
+
+    /* --- linhas --- */
+    const fluxoCor = m.pTrilho>=2.6?C.fuel:(m.pTrilho>=1.9?C.yel:C.red);
+    function tubo(xa,xb2){
+      g.beginPath(); g.moveTo(xa,yLinha); g.lineTo(xb2,yLinha);
+      g.strokeStyle='#2b3746'; g.lineWidth=13; g.stroke();
+      g.beginPath(); g.moveTo(xa,yLinha); g.lineTo(xb2,yLinha);
+      g.strokeStyle=fluxoCor; g.lineWidth=7; g.stroke();
+      /* gotas correndo */
+      if(st.play){
+        const n=3;
+        for(let i=0;i<n;i++){
+          const u=((t*0.9+i/n)%1);
+          const px=xa+(xb2-xa)*u;
+          g.beginPath(); g.arc(px,yLinha,3.4,0,6.2832);
+          g.fillStyle='#ffd9a0'; g.fill();
+        }
+      }
+    }
+    tubo(xs+86,xb); tubo(xb+80,xf); tubo(xf+74,xf+150);
+
+    /* --- trilho + manômetro --- */
+    const xt = xf+150;
+    rr(xt,yLinha-16,150,32,8,'#243040',C.line,1.5);
+    txt('TRILHO',xt+75,yLinha+26,11,C.mut,'center',true);
+
+    const cx=xt+75, cy=y0+42, rad=30;
+    g.beginPath(); g.arc(cx,cy,rad,0,6.2832); g.fillStyle='#101922'; g.fill();
+    g.strokeStyle=C.line; g.lineWidth=2; g.stroke();
+    const frac = Math.max(0,Math.min(1,m.pTrilho/5));
+    const a0=Math.PI*0.75, a1=a0+Math.PI*1.5;
+    g.beginPath(); g.arc(cx,cy,rad-6,a0,a1); g.strokeStyle='#26303e'; g.lineWidth=5; g.stroke();
+    g.beginPath(); g.arc(cx,cy,rad-6,a0,a0+(a1-a0)*frac);
+    g.strokeStyle=corPressao(m.pTrilho); g.lineWidth=5; g.stroke();
+    const ang=a0+(a1-a0)*frac;
+    g.beginPath(); g.moveTo(cx,cy); g.lineTo(cx+Math.cos(ang)*(rad-10),cy+Math.sin(ang)*(rad-10));
+    g.strokeStyle=C.fg; g.lineWidth=2.5; g.stroke();
+    txt(m.pTrilho.toFixed(2),cx,cy+34,15,corPressao(m.pTrilho),'center',true,true);
+    txt('bar na linha',cx,cy+54,11,C.mut,'center');
+
+    /* --- bico --- */
+    const xi = xt+150;
+    g.beginPath(); g.moveTo(xi,yLinha-14); g.lineTo(xi+30,yLinha-14);
+    g.lineTo(xi+30,yLinha+14); g.lineTo(xi,yLinha+14); g.closePath();
+    g.fillStyle='#243040'; g.fill(); g.strokeStyle=C.line; g.lineWidth=1.5; g.stroke();
+    g.beginPath(); g.moveTo(xi+30,yLinha-8); g.lineTo(xi+46,yLinha); g.lineTo(xi+30,yLinha+8);
+    g.closePath(); g.fillStyle=C.metal; g.fill();
+    /* leque do spray, largura pela vazão */
+    if(m.vaz>0.02){
+      const L=54*Math.min(1.25,m.vaz), ab=13*Math.min(1.25,m.vaz);
+      g.beginPath(); g.moveTo(xi+46,yLinha);
+      g.lineTo(xi+46+L,yLinha-ab); g.lineTo(xi+46+L,yLinha+ab); g.closePath();
+      g.fillStyle=m.vaz>0.9?'rgba(255,165,40,.55)':'rgba(255,86,86,.5)'; g.fill();
+      if(st.play){
+        for(let i=0;i<5;i++){
+          const u=((t*1.4+i/5)%1);
+          g.beginPath(); g.arc(xi+46+L*u, yLinha+(Math.sin(i*2.3)*ab*u), 2.2,0,6.2832);
+          g.fillStyle='#ffd9a0'; g.fill();
+        }
+      }
+    }
+    txt('BICO',xi+23,yLinha+30,11,C.mut,'center',true);
+
+    /* --- rótulo do coletor / vácuo --- */
+    const yv = y0+h-46;
+    txt('PRESSÃO NO COLETOR',x0+16,yv,12,C.mut,'left',true);
+    txt(m.pColetor.toFixed(2)+' bar  ('+(m.R.mapAbs*1000).toFixed(0)+' mbar absolutos)',
+        x0+16,yv+18,14,C.acc,'left',true,true);
+    txt(st.ref?'regulador SEGUE o vácuo — diferencial fixa'
+              :'regulador NÃO segue o vácuo — diferencial muda com a carga',
+        x0+w-16,yv+18,12,st.ref?C.grn:C.yel,'right',true);
+  }
+
+  /* ---------- curva da bomba ---------- */
+  function drawCurva(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('CURVA DA BOMBA',x0+14,y0+12,13,C.mut,'left',true);
+    const gx=x0+42, gy=y0+40, gw=w-58, gh=h-78;
+    const Qmax=70, Pmax=6;
+    g.strokeStyle='#22303f'; g.lineWidth=1;
+    for(let i=0;i<=6;i++){
+      const yy=gy+gh*(i/6);
+      g.beginPath(); g.moveTo(gx,yy); g.lineTo(gx+gw,yy); g.stroke();
+      txt((Pmax-i).toFixed(0),gx-6,yy-7,11,C.mut,'right',false,true);
+    }
+    const X=q=>gx+gw*(q/Qmax), Y=p=>gy+gh*(1-p/Pmax);
+
+    /* curva com filtro descontado */
+    const saude=st.bom/100, P0=P0_BOM*saude, Q0=Q0_BOM*saude;
+    const aL=Math.max(0.05,1-st.fil/100), kFil=K_FIL/(aL*aL);
+    g.beginPath();
+    for(let q=0;q<=Qmax;q+=0.5){
+      const p=Math.max(0,P0*(1-q/Q0)-kFil*q*q);
+      const xx=X(q), yy=Y(p);
+      q===0?g.moveTo(xx,yy):g.lineTo(xx,yy);
+    }
+    g.strokeStyle=C.acc; g.lineWidth=2.5; g.stroke();
+
+    /* linha do regulador */
+    g.setLineDash([5,4]);
+    g.beginPath(); g.moveTo(gx,Y(m.pReg)); g.lineTo(gx+gw,Y(m.pReg));
+    g.strokeStyle=C.grn; g.lineWidth=1.8; g.stroke(); g.setLineDash([]);
+    txt('regulador',gx+gw-4,Y(m.pReg)-16,11,C.grn,'right',true);
+
+    /* ponto de operação */
+    const px=X(m.Q), py=Y(m.pTrilho);
+    g.beginPath(); g.arc(px,py,7,0,6.2832);
+    g.fillStyle=m.limitadoPelaBomba?C.red:C.grn; g.fill();
+    g.strokeStyle='#0b111a'; g.lineWidth=2; g.stroke();
+    txt(m.Q.toFixed(1)+' L/h',px,py+14,11,C.fg,'center',true,true);
+
+    txt('vazão pedida pelo motor (L/h)',gx+gw/2,gy+gh+14,11,C.mut,'center');
+    txt('bar',gx-30,gy-16,11,C.mut,'left');
+  }
+
+  /* ---------- leituras ---------- */
+  function drawLeituras(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    const rows=[
+      ['Pressão de linha', m.pTrilho.toFixed(2)+' bar', corPressao(m.pTrilho)],
+      ['Pressão no coletor', m.pColetor.toFixed(2)+' bar', C.fg],
+      ['Diferencial no bico (ΔP)', m.dP.toFixed(2)+' bar',
+        m.dP>=m.dPnom*0.9?C.grn:(m.dP>=m.dPnom*0.6?C.yel:C.red)],
+      ['ΔP de referência', m.dPnom.toFixed(2)+' bar', C.mut],
+      ['Perda no filtro', '−'+m.perdaFiltro.toFixed(2)+' bar',
+        m.perdaFiltro>0.4?C.red:(m.perdaFiltro>0.15?C.yel:C.fg)]
+    ];
+    let y=y0+16;
+    rows.forEach(r=>{
+      txt(r[0],x0+16,y+4,13,'#c3cede');
+      txt(r[1],x0+w-16,y,16,r[2],'right',true,true);
+      y+=30;
+    });
+
+    y+=8;
+    const pct=m.vaz*100;
+    txt('VAZÃO DO BICO (√ΔP)',x0+16,y+8,13,C.mut,'left',true);
+    const vc=pct>96?C.grn:(pct>80?C.yel:C.red);
+    txt(pct.toFixed(0)+' %',x0+w-16,y,26,vc,'right',true,true);
+    rr(x0+16,y+34,w-32,16,8,'#26303e');
+    if(pct>1) rr(x0+16,y+34,(w-32)*Math.min(1,pct/100),16,8,vc);
+
+    y+=64;
+    txt('Correção pedida à sonda',x0+16,y+4,13,'#c3cede');
+    const tp=(m.trimPedido*100);
+    txt((tp>=0?'+':'')+tp.toFixed(0)+' %',x0+w-16,y,16,
+        Math.abs(tp)<=25?C.grn:C.red,'right',true,true);
+    y+=30;
+    txt('Correção que a central consegue',x0+16,y+4,13,'#c3cede');
+    const ta=(m.trimAplicado*100);
+    txt((ta>=0?'+':'')+ta.toFixed(0)+' %',x0+w-16,y,16,
+        m.noLimite?C.red:C.acc,'right',true,true);
+
+    y+=42;
+    g.strokeStyle=C.line; g.lineWidth=1;
+    g.beginPath(); g.moveTo(x0+16,y); g.lineTo(x0+w-16,y); g.stroke();
+    txt('MISTURA QUE CHEGA NO CILINDRO',x0+16,y+12,12,C.mut,'left',true);
+    txt('Lambda',x0+16,y+42,13,'#c3cede');
+    const lc=(m.lambda<1.05&&m.lambda>0.95)?C.grn:((m.lambda<1.2&&m.lambda>0.85)?C.yel:C.red);
+    txt(m.lambda>8?'não queima':('λ ≈ '+m.lambda.toFixed(2)),x0+w-16,y+38,16,lc,'right',true,true);
+  }
+
+  /* ---------- veredicto ---------- */
+  function drawVeredicto(m,x0,y0,w,h){
+    let cor,tit,desc;
+    if(m.dP<=0){
+      cor=C.red; tit='SEM PRESSÃO — O BICO NÃO PULVERIZA';
+      desc='Não existe diferencial para empurrar o combustível. Motor não pega. Confira bomba, relé e filtro antes de qualquer coisa.';
+    } else if(m.pTrilho<1.9){
+      cor=C.red; tit='PRESSÃO BAIXA — MISTURA POBRE ALÉM DA CORREÇÃO';
+      desc='A vazão caiu com a raiz da diferencial e a central não tem trim suficiente. Sintoma: falha e perda de força em carga, com correção de combustível positiva no scanner.';
+    } else if(m.noLimite){
+      cor=C.yel; tit='A CENTRAL BATEU NO LIMITE DA CORREÇÃO';
+      desc='Ela está corrigindo o máximo que pode e ainda não fecha a conta. É aqui que acende a luz e grava falha de mistura — o defeito é hidráulico, não elétrico.';
+    } else if(m.limitadoPelaBomba){
+      cor=C.yel; tit='QUEM MANDA NA PRESSÃO É A BOMBA, NÃO O REGULADOR';
+      desc='O conjunto bomba + filtro não entrega o que este regime pede, então a pressão desabou abaixo da regulagem. Repita o teste em marcha lenta: lá ela volta ao normal e engana.';
+    } else if(m.lambda<0.92){
+      cor=C.yel; tit='PRESSÃO ALTA — MISTURA RICA';
+      desc='Regulador ou retorno preso. Vazão acima do previsto, consumo alto, cheiro de combustível e vela escurecendo.';
+    } else {
+      cor=C.grn; tit='PRESSÃO CORRETA — VAZÃO IGUAL À CALCULADA';
+      desc='O regulador está mandando na pressão, a diferencial bate com a referência e o bico entrega o que a central pediu.';
+    }
+    rr(x0,y0,w,h,12,'#101922',cor,2);
+    g.beginPath(); g.arc(x0+26,y0+h/2,8,0,6.2832); g.fillStyle=cor; g.fill();
+    txt(tit,x0+46,y0+16,17,cor,'left',true);
+    txt(desc,x0+46,y0+44,13,'#c3cede');
+  }
+
+  /* ---------- a raiz quadrada, lado a lado ---------- */
+  function drawRaiz(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('POR QUE NÃO É PROPORCIONAL',x0+14,y0+12,13,C.mut,'left',true);
+    const pP = m.dPnom>0 ? m.dP/m.dPnom : 0;      /* quanto sobrou de pressão */
+    const pV = m.vaz;                              /* quanto sobrou de vazão  */
+    const bx=x0+16, bw=w-32;
+    function barra(rot,frac,cor,yy){
+      txt(rot,bx,yy,12,'#c3cede','left',true);
+      txt((frac*100).toFixed(0)+' %',x0+w-16,yy-2,15,cor,'right',true,true);
+      rr(bx,yy+20,bw,14,7,'#26303e');
+      if(frac>0.01) rr(bx,yy+20,bw*Math.min(1,frac),14,7,cor);
+    }
+    barra('Pressão diferencial que sobrou', pP,
+          pP>0.9?C.grn:(pP>0.6?C.yel:C.red), y0+40);
+    barra('Combustível que o bico entrega', pV,
+          pV>0.9?C.grn:(pV>0.8?C.yel:C.red), y0+96);
+    const perdaP=(1-pP)*100, perdaV=(1-pV)*100;
+    txt(pP<0.995
+        ? ('Perdeu '+perdaP.toFixed(0)+' % de pressão e só '+perdaV.toFixed(0)+' % de combustível — a raiz segura a queda.')
+        : 'Pressão na referência: o bico entrega o que a central calculou.',
+        bx,y0+h-24,12,C.mut);
+  }
+
+  /* ---------- loop ---------- */
+  function frame(){
+    const m=modelo();
+    if(st.play) st.t+=0.016;
+    const W=cv.width,H=cv.height;
+    const aviso=document.getElementById('semjs');
+    if(aviso) aviso.style.display='none';
+    g.fillStyle=C.bg; g.fillRect(0,0,W,H);
+    drawCircuito(m,st.t,16,16,800,300);
+    drawCurva(m,16,332,470,166);
+    drawLeituras(m,832,16,352,482);
+    drawRaiz(m,502,332,314,166);
+    drawVeredicto(m,16,514,1168,70);
+    if(!st.play){ g.strokeStyle=C.yel; g.lineWidth=6; g.strokeRect(3,3,W-6,H-6); }
+    document.getElementById('tLab').textContent =
+      st.play ? (m.R.rpm+' rpm · '+m.Q.toFixed(1)+' L/h') : 'parado';
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- controles ---------- */
+  const sFil=document.getElementById('sFil'), sBom=document.getElementById('sBom'),
+        sRegu=document.getElementById('sRegu'), cRef=document.getElementById('cRef'),
+        cTrim=document.getElementById('cTrim');
+  function tag(el,t,c){ el.textContent=t; el.style.color=c; }
+  function sync(){
+    st.fil=+sFil.value; st.bom=+sBom.value; st.regu=+sRegu.value;
+    st.ref=cRef.checked; st.trim=cTrim.checked;
+    document.getElementById('vFil').textContent=st.fil+' %';
+    document.getElementById('vBom').textContent=st.bom>=85?'BOA':(st.bom>=60?'DESGASTADA':'FRACA');
+    document.getElementById('vRegu').textContent=(st.regu/10).toFixed(1).replace('.',',')+' bar';
+    document.getElementById('vReg').textContent=REGIMES[st.reg].nome;
+    tag(document.getElementById('regTag'),REGIMES[st.reg].carga,'#92a2b6');
+    tag(document.getElementById('filTag'),
+        st.fil<25?'passagem livre':(st.fil<70?'restringindo':'quase fechado'),
+        st.fil<25?'#42d88c':(st.fil<70?'#ffd640':'#ff5656'));
+    tag(document.getElementById('bomTag'),
+        st.bom>=85?'entrega normal':(st.bom>=60?'perdendo vazão':'não sustenta carga'),
+        st.bom>=85?'#42d88c':(st.bom>=60?'#ffd640':'#ff5656'));
+    const pr=st.regu/10;
+    tag(document.getElementById('reguTag'),
+        (pr>=2.7&&pr<=3.3)?'regulagem correta':(pr<2.7?'regula baixo':'regula alto'),
+        (pr>=2.7&&pr<=3.3)?'#42d88c':'#ffd640');
+    document.querySelectorAll('.rg').forEach(b=>
+      b.classList.toggle('on', b.dataset.r===st.reg));
+  }
+  [sFil,sBom,sRegu].forEach(e=>e.addEventListener('input',sync));
+  [cRef,cTrim].forEach(e=>e.addEventListener('change',sync));
+  document.querySelectorAll('.rg').forEach(b=>
+    b.onclick=()=>{ st.reg=b.dataset.r; sync(); });
+  document.querySelectorAll('button[data-f]').forEach(b=>
+    b.onclick=()=>{ sFil.value=b.dataset.f; sync(); });
+  document.querySelectorAll('button[data-b]').forEach(b=>
+    b.onclick=()=>{ sBom.value=b.dataset.b; sync(); });
+  document.querySelectorAll('button[data-g]').forEach(b=>
+    b.onclick=()=>{ sRegu.value=b.dataset.g; sync(); });
+
+  const bp=document.getElementById('bPlay');
+  function setPlay(v){ st.play=v; bp.textContent=v?'PAUSAR':'▶  RODAR'; bp.classList.toggle('on',v); }
+  bp.onclick=()=>setPlay(!st.play);
+  document.getElementById('bRst').onclick=()=>{ st.t=0; setPlay(true); };
+  cv.addEventListener('click',()=>setPlay(!st.play));
+  document.getElementById('bReset').onclick=()=>{
+    sFil.value=0; sBom.value=100; sRegu.value=30; cRef.checked=false; cTrim.checked=true;
+    st.reg='lenta'; st.t=0; sync(); setPlay(true);
+  };
+
+  /* gancho de verificação */
+  window.__comb=function(o){
+    o=o||{};
+    if(o.reg!==undefined) st.reg=o.reg;
+    if(o.fil!==undefined) sFil.value=o.fil;
+    if(o.bom!==undefined) sBom.value=o.bom;
+    if(o.regu!==undefined) sRegu.value=o.regu;
+    if(o.ref!==undefined) cRef.checked=o.ref;
+    if(o.trim!==undefined) cTrim.checked=o.trim;
+    sync();
+    const m=modelo();
+    return {pTrilho:+m.pTrilho.toFixed(3), dP:+m.dP.toFixed(3), dPnom:+m.dPnom.toFixed(3),
+            vaz:+m.vaz.toFixed(4), lambda:+m.lambda.toFixed(3), Q:m.Q,
+            perdaFiltro:+m.perdaFiltro.toFixed(3), limitadoPelaBomba:m.limitadoPelaBomba,
+            noLimite:m.noLimite, trimPedido:+m.trimPedido.toFixed(3)};
+  };
+
+  sync(); frame();
+})();
+</script>
+</body>
+</html>

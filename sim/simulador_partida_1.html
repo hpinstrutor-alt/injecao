@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador — Partida a frio e afogamento</title>
+<style>
+  :root{
+    --bg:#0d131b; --panel:#18222f; --panel2:#1e2a39; --line:#2a3a4d;
+    --fg:#e9eff6; --mut:#92a2b6; --acc:#00b0ff; --fuel:#ffa528;
+    --grn:#42d88c; --yel:#ffd640; --red:#ff5656;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+  header{padding:18px 26px 14px;border-bottom:3px solid var(--acc);background:var(--panel)}
+  h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header p{margin:6px 0 0;color:var(--mut);font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px}
+  canvas{width:100%;height:auto;display:block;border-radius:12px;background:#0b111a}
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+            gap:14px;margin-top:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card h3{margin:0 0 4px;font-size:13px;letter-spacing:1.2px;color:var(--mut);
+           text-transform:uppercase}
+  .val{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;margin:14px 0 8px;accent-color:var(--acc);height:38px;
+                    -webkit-appearance:none;background:transparent;touch-action:none}
+  input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;
+    background:linear-gradient(#2c3a4c,#22303f)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;
+    border-radius:50%;background:var(--acc);border:3px solid #0d131b;margin-top:-11px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:#2c3a4c}
+  input[type=range]::-moz-range-thumb{width:30px;height:30px;border:3px solid #0d131b;
+    border-radius:50%;background:var(--acc)}
+  .presets{display:flex;gap:8px;flex-wrap:wrap}
+  .playbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);
+           border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  button.big{font-size:17px;padding:14px 22px;min-height:56px;min-width:170px}
+  .tlab{font:700 17px ui-monospace,Consolas,monospace;color:var(--acc);min-width:160px;
+        text-align:right}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+         border-radius:10px;padding:12px 16px;font-size:15px;cursor:pointer;font-weight:600;
+         min-height:46px;touch-action:manipulation}
+  button:hover{border-color:var(--acc)}
+  button.on{background:#003b5c;border-color:var(--acc);color:#bfe9ff}
+  button.part{background:#0d5c2a;border-color:#42d88c;color:#d6ffe8}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .hint{color:var(--mut);font-size:12px;margin-top:8px;line-height:1.45}
+  footer{color:#5a6472;font-size:12px;padding:6px 26px 26px;text-align:center}
+  #semjs{background:#3a2a0c;border:2px solid var(--fuel);color:#ffd9a0;border-radius:12px;
+         padding:22px;font-size:16px;line-height:1.6;margin-bottom:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Partida a frio — por que a central injeta muito mais do que a conta pede</h1>
+  <p>No frio, boa parte da gasolina não vira vapor: ela molha a parede e não queima. Só o que evapora entra na mistura.</p>
+</header>
+
+<div class="wrap">
+  <div class="playbar">
+    <button id="bDar" class="big part">DAR PARTIDA</button>
+    <button id="bRst" class="big">&#9198;&nbsp; ESFRIAR TUDO</button>
+    <span id="tLab" class="tlab">motor parado</span>
+  </div>
+  <div id="semjs">
+    <b>Esta página não está rodando.</b><br>
+    Você abriu o arquivo por um visualizador que bloqueia animações.<br><br>
+    <b>Abra assim:</b> salve em <i>Downloads</i> &rarr; abra o <b>Chrome</b> &rarr;
+    menu <b>⋮</b> &rarr; <b>Downloads</b> &rarr; toque no arquivo.
+  </div>
+  <canvas id="cv" width="1200" height="600"></canvas>
+
+  <div class="controls">
+    <div class="card">
+      <h3>Temperatura do motor (ECT)</h3>
+      <div class="row"><span class="val" id="vT">−5 °C</span><span class="hint" id="tTag"></span></div>
+      <input type="range" id="sT" min="-20" max="100" step="1" value="-5">
+      <div class="presets">
+        <button data-t="-15">Muito frio −15</button>
+        <button data-t="-5">Frio −5</button>
+        <button data-t="25">Ambiente 25</button>
+        <button data-t="90">Quente 90</button>
+      </div>
+      <div class="hint">É esta leitura que a central usa para decidir o enriquecimento. Sensor mentindo
+        = enriquecimento errado, e o motor não pega mesmo com tudo o mais perfeito.</div>
+    </div>
+
+    <div class="card">
+      <h3>Sensor ECT</h3>
+      <div class="row"><span class="val" id="vEct">HONESTO</span><span class="hint" id="ectTag"></span></div>
+      <div class="presets" style="margin-top:12px">
+        <button class="ec on" data-e="0">Sensor bom</button>
+        <button class="ec" data-e="60">Lê quente demais</button>
+        <button class="ec" data-e="-60">Lê frio demais</button>
+      </div>
+      <div class="hint">ECT lendo quente num motor frio é o defeito clássico de "não pega de manhã":
+        a central acha que está quente e injeta pouco.</div>
+    </div>
+
+    <div class="card">
+      <h3>Acelerador na partida</h3>
+      <div class="row"><span class="val" id="vAcel">FECHADO</span><span class="hint" id="acelTag"></span></div>
+      <div class="presets" style="margin-top:12px">
+        <button class="ac on" data-a="0">Fechado</button>
+        <button class="ac" data-a="50">Meio aberto</button>
+        <button class="ac" data-a="100">Todo aberto</button>
+      </div>
+      <div class="hint">Acelerador todo aberto na partida aciona o <b>corte de afogamento</b>: a central
+        reduz muito a injeção para o cilindro conseguir secar.</div>
+    </div>
+
+    <div class="card">
+      <h3>Bateria</h3>
+      <div class="row"><span class="val" id="vBat">BOA</span><span class="hint" id="batTag"></span></div>
+      <div class="presets" style="margin-top:12px">
+        <button class="bt on" data-b="1">Bateria boa</button>
+        <button class="bt" data-b="0">Bateria fraca</button>
+      </div>
+      <div class="hint">Rotação de partida baixa piora a pulverização e o motor demora mais a
+        pegar — o que só faz molhar mais a vela.</div>
+    </div>
+  </div>
+</div>
+<footer>HP Instrutor · Injeção Eletrônica — só o combustível que vaporiza participa da queima:
+  λ<sub>câmara</sub> = 1 / (fator de enriquecimento × fração vaporizada)</footer>
+
+<script>
+(function(){
+  const cv=document.getElementById('cv'), g=cv.getContext('2d');
+  const C={bg:'#0b111a',panel:'#18222f',panel2:'#1e2a39',line:'#2a3a4d',fg:'#e9eff6',
+           mut:'#92a2b6',acc:'#00b0ff',fuel:'#ffa528',grn:'#42d88c',yel:'#ffd640',red:'#ff5656'};
+
+  const st={T:-5, erroEct:0, acel:0, bat:1, poca:0, tentativas:0, pegou:false, girando:false, t:0};
+
+  /* fração da gasolina que consegue virar vapor na parede fria */
+  function fracaoVapor(T){ return Math.max(0.22, Math.min(1, 0.30 + 0.0078*T)); }
+  /* enriquecimento que a central aplica, pela temperatura QUE ELA LÊ */
+  function fatorEnriq(Tlido){ return Math.max(1, Math.min(4.6, 1/fracaoVapor(Tlido))); }
+
+  function modelo(){
+    const Tlido = Math.max(-40, Math.min(130, st.T + st.erroEct));
+    const phi = fracaoVapor(st.T);              /* realidade: depende da temperatura REAL */
+    let K = fatorEnriq(Tlido);                  /* central: decide pelo que LÊ            */
+    const corteAfog = st.acel >= 95;
+    if(corteAfog) K = 0.25;                     /* corte de afogamento                    */
+
+    const rpmPart = st.bat ? 300 : 170;
+    /* rotação baixa pulveriza pior: menos vapor ainda */
+    const phiEfetivo = phi * (st.bat ? 1 : 0.82);
+
+    const massaInjetada = K;                    /* em múltiplos da massa estequiométrica  */
+    const massaVapor = massaInjetada * phiEfetivo;
+    const lambda = massaVapor > 0.02 ? 1/massaVapor : 9;
+    const liquidoPorTentativa = Math.max(0, massaInjetada - massaVapor);
+
+    /* a vela pega se a mistura no cilindro estiver dentro da faixa inflamável
+       e a vela não estiver encharcada */
+    const velaMolhada = st.poca > 2.6;
+    const misturaOk = lambda > 0.55 && lambda < 1.45;
+    const pega = misturaOk && !velaMolhada && !corteAfog;
+
+    return {Tlido, phi:phiEfetivo, K, massaInjetada, massaVapor, lambda,
+            liquidoPorTentativa, velaMolhada, misturaOk, pega, corteAfog, rpmPart};
+  }
+
+  function rr(x,y,w,h,r,fill,stroke,lw){
+    g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r);
+    g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+    if(fill){g.fillStyle=fill; g.fill();}
+    if(stroke){g.strokeStyle=stroke; g.lineWidth=lw||2; g.stroke();}
+  }
+  function txt(s,x,y,size,color,align,bold,mono){
+    g.font=(bold?'700 ':'')+size+'px '+(mono?'ui-monospace,Consolas,monospace':'Segoe UI,Arial,sans-serif');
+    g.fillStyle=color; g.textAlign=align||'left'; g.textBaseline='top'; g.fillText(s,x,y);
+  }
+
+  /* ---------- cilindro: vapor x líquido na parede ---------- */
+  function drawCilindro(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('DENTRO DO CILINDRO',x0+14,y0+12,13,C.mut,'left',true);
+    const cx=x0+w/2, top=y0+52, bot=y0+h-58, cw=150;
+    /* paredes */
+    rr(cx-cw/2,top,cw,bot-top,8,'#131c27','#3a4757',2);
+    /* névoa de vapor */
+    const dens=Math.min(1,m.massaVapor);
+    for(let i=0;i<70;i++){
+      const px=cx-cw/2+8+Math.random()*(cw-16);
+      const py=top+10+Math.random()*(bot-top-40);
+      g.beginPath(); g.arc(px,py,1.6,0,6.2832);
+      g.fillStyle='rgba(255,165,40,'+(0.10+0.55*dens)+')'; g.fill();
+    }
+    /* poça no fundo */
+    const poca=Math.min(1,st.poca/4);
+    if(poca>0.01){
+      const ph=6+poca*28;
+      rr(cx-cw/2+4,bot-ph,cw-8,ph,4,'rgba(255,140,20,.75)');
+      txt('combustível líquido',cx,bot-ph-16,11,C.fuel,'center',true);
+    }
+    /* vela */
+    const vx=cx, vy=top-6;
+    g.beginPath(); g.moveTo(vx-8,vy); g.lineTo(vx+8,vy); g.lineTo(vx+5,vy+22); g.lineTo(vx-5,vy+22);
+    g.closePath(); g.fillStyle=m.velaMolhada?'#5a3a10':'#9ca8b8'; g.fill();
+    if(m.pega && st.girando){
+      g.beginPath(); g.arc(vx,vy+26,10+Math.random()*7,0,6.2832);
+      g.fillStyle='rgba(120,200,255,.75)'; g.fill();
+    }
+    txt(m.velaMolhada?'VELA ENCHARCADA':'vela seca',cx,y0+h-40,13,
+        m.velaMolhada?C.red:C.grn,'center',true);
+    txt(st.girando?(m.rpmPart+' rpm de partida'):'parado',cx,y0+h-20,11,C.mut,'center');
+  }
+
+  /* ---------- a conta do combustível ---------- */
+  function drawConta(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('A CONTA QUE A CENTRAL FAZ',x0+14,y0+12,13,C.mut,'left',true);
+    const bx=x0+16, bw=w-32;
+    function barra(rot,val,max,cor,yy,sufixo){
+      txt(rot,bx,yy,12,'#c3cede','left',true);
+      txt(val.toFixed(2)+(sufixo||'×'),x0+w-16,yy-2,15,cor,'right',true,true);
+      rr(bx,yy+20,bw,14,7,'#26303e');
+      rr(bx,yy+20,bw*Math.min(1,val/max),14,7,cor);
+    }
+    barra('Combustível que a central manda',m.massaInjetada,5,C.fuel,y0+44);
+    barra('Do que virou vapor e vai queimar',m.massaVapor,5,
+          m.misturaOk?C.grn:C.red,y0+100);
+    txt('O resto molhou a parede e o pistão — não queima, escorre.',bx,y0+h-26,12,C.mut);
+  }
+
+  /* ---------- leituras ---------- */
+  function drawLeituras(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    let y=y0+16;
+    const rows=[
+      ['Temperatura real', st.T+' °C', C.fg],
+      ['Temperatura que a central lê', m.Tlido.toFixed(0)+' °C',
+        Math.abs(st.erroEct)>5?C.red:C.grn],
+      ['Fração que vaporiza', (m.phi*100).toFixed(0)+' %',
+        m.phi>0.6?C.grn:(m.phi>0.3?C.yel:C.red)],
+      ['Enriquecimento aplicado', m.K.toFixed(2)+' ×',
+        m.corteAfog?C.acc:(m.K>1.05?C.yel:C.grn)],
+      ['Tentativas de partida', st.tentativas+'', st.tentativas>3?C.red:C.fg],
+      ['Poça acumulada', st.poca.toFixed(2), st.poca>2.6?C.red:(st.poca>1.2?C.yel:C.grn)]
+    ];
+    rows.forEach(r=>{
+      txt(r[0],x0+16,y+4,13,'#c3cede');
+      txt(r[1],x0+w-16,y,15,r[2],'right',true,true);
+      y+=32;
+    });
+    y+=8;
+    g.strokeStyle=C.line; g.lineWidth=1;
+    g.beginPath(); g.moveTo(x0+16,y); g.lineTo(x0+w-16,y); g.stroke();
+    txt('MISTURA QUE REALMENTE QUEIMA',x0+16,y+12,12,C.mut,'left',true);
+    const lc=m.misturaOk?C.grn:C.red;
+    txt(m.lambda>8?'quase nada de vapor':('λ ≈ '+m.lambda.toFixed(2)),
+        x0+w-16,y+34,20,lc,'right',true,true);
+    txt(m.lambda<0.55?'rica demais para inflamar'
+       :(m.lambda>1.45?'pobre demais para inflamar':'dentro da faixa que pega fogo'),
+       x0+16,y+40,12,lc);
+
+    txt('FAIXA INFLAMÁVEL: λ 0,55 a 1,45',x0+16,y+72,12,C.mut,'left',true);
+    const fx=x0+16, fw=w-32, fy=y+92;
+    rr(fx,fy,fw,14,7,'#26303e');
+    rr(fx+fw*0.20,fy,fw*0.45,14,7,'#1f4a33');
+    const px=fx+fw*Math.max(0,Math.min(1,(m.lambda-0.2)/1.8));
+    g.beginPath(); g.moveTo(px,fy-6); g.lineTo(px+6,fy+7); g.lineTo(px,fy+20); g.lineTo(px-6,fy+7);
+    g.closePath(); g.fillStyle=lc; g.fill();
+  }
+
+  /* ---------- veredicto ---------- */
+  function drawVeredicto(m,x0,y0,w,h){
+    let cor,tit,desc;
+    if(m.corteAfog){
+      cor=C.acc; tit='CORTE DE AFOGAMENTO ATIVO — ESTÁ SECANDO O CILINDRO';
+      desc='Com o acelerador todo aberto a central quase não injeta e deixa o ar varrer o combustível encharcado. É assim que se desafoga um motor injetado: sem tirar vela.';
+    } else if(m.velaMolhada){
+      cor=C.red; tit='AFOGADO — VELA ENCHARCADA';
+      desc='Cada tentativa jogou mais líquido do que o motor consegue evaporar. A faísca não vence o combustível na vela. Abra o acelerador todo e insista, ou seque a vela.';
+    } else if(m.lambda>1.45){
+      cor=C.red; tit='POBRE DEMAIS PARA PEGAR FOGO';
+      desc='Não chegou vapor suficiente na câmara. Se a temperatura real está baixa e o enriquecimento não veio, desconfie da leitura do sensor ECT antes de qualquer outra coisa.';
+    } else if(m.lambda<0.55){
+      cor=C.yel; tit='RICA DEMAIS — TAMBÉM NÃO INFLAMA';
+      desc='Vapor em excesso na câmara. Passou do ponto onde a mistura queima; continuar insistindo só acumula líquido e afoga.';
+    } else if(m.pega){
+      cor=C.grn; tit='PEGOU — ENRIQUECIMENTO NA MEDIDA';
+      desc='A central injetou '+m.K.toFixed(1)+'× a massa da conta seca porque só '+(m.phi*100).toFixed(0)+' % vira vapor nessa temperatura. Do lado de dentro, a mistura que queima é λ ≈ '+m.lambda.toFixed(2)+'.';
+    } else {
+      cor=C.yel; tit='NÃO PEGOU AINDA';
+      desc='A mistura está na faixa, mas alguma coisa segura a partida. Confira rotação de partida e o estado da vela.';
+    }
+    rr(x0,y0,w,h,12,'#101922',cor,2);
+    g.beginPath(); g.arc(x0+26,y0+h/2,8,0,6.2832); g.fillStyle=cor; g.fill();
+    txt(tit,x0+46,y0+16,17,cor,'left',true);
+    txt(desc,x0+46,y0+44,13,'#c3cede');
+  }
+
+  /* ---------- o que fazer na oficina ---------- */
+  function drawDica(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('NA OFICINA',x0+14,y0+12,13,C.mut,'left',true);
+    let linhas;
+    if(m.velaMolhada || m.corteAfog){
+      linhas=['Motor afogado, sem tirar a vela:','',
+              '1. Acelerador TODO aberto','2. Gire o motor de partida','3. A central corta a injeção',
+              '4. O ar seco varre o combustível','5. Solte o acelerador e dê partida','',
+              'Se afoga sempre no frio, o problema','é o enriquecimento — não o motorista.'];
+    } else if(Math.abs(st.erroEct)>5){
+      linhas=['O sensor ECT está mentindo.','',
+              'Compare a leitura do scanner com a','temperatura real do motor frio: com o','motor de pernoite, a ECT tem que',
+              'marcar a temperatura do ambiente.','','Diferença grande = sensor ou chicote,','e o enriquecimento sai todo errado.'];
+    } else if(st.T<10){
+      linhas=['Partida a frio normal:','',
+              'A central multiplica o tempo de','injeção porque conta com a parte','que vai condensar na parede.','',
+              'Conforme o motor aquece, ela reduz','esse enriquecimento sozinha — é o','que faz a lenta cair para o normal.'];
+    } else {
+      linhas=['Motor na temperatura:','',
+              'Quase tudo que entra vira vapor,','então a central injeta praticamente','a massa da conta seca.','',
+              'Enriquecimento alto com motor quente','é sinal de ECT lendo frio demais.'];
+    }
+    let y=y0+42;
+    linhas.forEach(l=>{ txt(l,x0+16,y,12.5,l.match(/^\d\./)?C.fg:C.mut); y+=19; });
+  }
+
+  /* ---------- loop ---------- */
+  function frame(){
+    const m=modelo();
+    st.t+=0.016;
+    /* enquanto gira: acumula ou seca a poça */
+    if(st.girando){
+      if(m.corteAfog) st.poca=Math.max(0,st.poca-0.030);
+      else st.poca=Math.min(4,st.poca+m.liquidoPorTentativa*0.016);
+    } else {
+      st.poca=Math.max(0,st.poca-0.004);      /* evapora devagar parado */
+    }
+    const aviso=document.getElementById('semjs');
+    if(aviso) aviso.style.display='none';
+    g.fillStyle=C.bg; g.fillRect(0,0,cv.width,cv.height);
+    drawCilindro(m,16,16,470,482);
+    drawConta(m,502,16,314,196);
+    drawDica(m,502,228,314,270);
+    drawLeituras(m,832,16,352,482);
+    drawVeredicto(m,16,514,1168,70);
+    document.getElementById('tLab').textContent =
+      st.girando ? (m.pega?'PEGOU · '+m.rpmPart+' rpm':'girando...') : 'motor parado';
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- controles ---------- */
+  const sT=document.getElementById('sT');
+  function tag(el,t,c){ el.textContent=t; el.style.color=c; }
+  function sync(){
+    st.T=+sT.value;
+    document.getElementById('vT').textContent=(st.T<0?'−':'')+Math.abs(st.T)+' °C';
+    tag(document.getElementById('tTag'),
+      st.T<0?'motor gelado':(st.T<40?'motor frio':(st.T<75?'aquecendo':'na temperatura')),
+      st.T<0?'#ff5656':(st.T<40?'#ffd640':'#42d88c'));
+    document.getElementById('vEct').textContent =
+      st.erroEct===0?'HONESTO':(st.erroEct>0?'LÊ QUENTE':'LÊ FRIO');
+    tag(document.getElementById('ectTag'),
+      st.erroEct===0?'leitura confiável':(st.erroEct>0?'engana a central':'enriquece demais'),
+      st.erroEct===0?'#42d88c':'#ff5656');
+    document.getElementById('vAcel').textContent =
+      st.acel===0?'FECHADO':(st.acel<95?'MEIO ABERTO':'TODO ABERTO');
+    tag(document.getElementById('acelTag'),
+      st.acel>=95?'corte de afogamento':'partida normal',
+      st.acel>=95?'#00b0ff':'#92a2b6');
+    document.getElementById('vBat').textContent=st.bat?'BOA':'FRACA';
+    tag(document.getElementById('batTag'),
+      st.bat?'gira firme':'gira devagar', st.bat?'#42d88c':'#ffd640');
+    document.querySelectorAll('.ec').forEach(b=>b.classList.toggle('on',+b.dataset.e===st.erroEct));
+    document.querySelectorAll('.ac').forEach(b=>b.classList.toggle('on',+b.dataset.a===st.acel));
+    document.querySelectorAll('.bt').forEach(b=>b.classList.toggle('on',+b.dataset.b===st.bat));
+  }
+  sT.addEventListener('input',sync);
+  document.querySelectorAll('button[data-t]').forEach(b=>
+    b.onclick=()=>{ sT.value=b.dataset.t; sync(); });
+  document.querySelectorAll('.ec').forEach(b=>b.onclick=()=>{st.erroEct=+b.dataset.e; sync();});
+  document.querySelectorAll('.ac').forEach(b=>b.onclick=()=>{st.acel=+b.dataset.a; sync();});
+  document.querySelectorAll('.bt').forEach(b=>b.onclick=()=>{st.bat=+b.dataset.b; sync();});
+
+  const bd=document.getElementById('bDar');
+  bd.onmousedown=bd.ontouchstart=()=>{ st.girando=true; st.tentativas++; bd.classList.add('on'); };
+  bd.onmouseup=bd.onmouseleave=bd.ontouchend=()=>{ st.girando=false; bd.classList.remove('on'); };
+  document.getElementById('bRst').onclick=()=>{
+    st.poca=0; st.tentativas=0; st.girando=false; st.pegou=false; sync();
+  };
+
+  window.__part=function(o){
+    o=o||{};
+    if(o.T!==undefined) sT.value=o.T;
+    if(o.ect!==undefined) st.erroEct=o.ect;
+    if(o.acel!==undefined) st.acel=o.acel;
+    if(o.bat!==undefined) st.bat=o.bat;
+    if(o.poca!==undefined) st.poca=o.poca;
+    sync();
+    const m=modelo();
+    return {Tlido:m.Tlido, phi:+m.phi.toFixed(3), K:+m.K.toFixed(2),
+            massaVapor:+m.massaVapor.toFixed(3), lambda:+m.lambda.toFixed(2),
+            pega:m.pega, misturaOk:m.misturaOk, velaMolhada:m.velaMolhada,
+            corteAfog:m.corteAfog};
+  };
+
+  sync(); frame();
+})();
+</script>
+</body>
+</html>

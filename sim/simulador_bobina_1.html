@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador — Bobina de Ignição</title>
+<style>
+  :root{--bg:#0d131b;--panel:#18222f;--panel2:#1e2a39;--line:#2a3a4d;--fg:#e9eff6;
+        --mut:#92a2b6;--acc:#00b0ff;--fuel:#ffa528;--grn:#42d88c;--yel:#ffd640;--red:#ff5656}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+  header{padding:18px 26px 14px;border-bottom:3px solid var(--yel);background:var(--panel)}
+  h1{margin:0;font-size:22px}
+  header p{margin:6px 0 0;color:var(--mut);font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px}
+  canvas{width:100%;height:auto;display:block;border-radius:12px;background:#0b111a}
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+            gap:14px;margin-top:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card h3{margin:0 0 4px;font-size:13px;letter-spacing:1.2px;color:var(--mut);
+           text-transform:uppercase}
+  .val{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;margin:14px 0 8px;accent-color:var(--acc);height:38px;
+                    -webkit-appearance:none;background:transparent;touch-action:none}
+  input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;
+    background:linear-gradient(#2c3a4c,#22303f)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;
+    border-radius:50%;background:var(--acc);border:3px solid #0d131b;margin-top:-11px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:#2c3a4c}
+  input[type=range]::-moz-range-thumb{width:30px;height:30px;border:3px solid #0d131b;
+    border-radius:50%;background:var(--acc)}
+  .presets{display:flex;gap:8px;flex-wrap:wrap}
+  .playbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);
+           border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .playbar .scrub{flex:1 1 220px;min-width:180px}
+  .playbar input[type=range]{margin:0}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+         border-radius:10px;padding:12px 16px;font-size:15px;cursor:pointer;font-weight:600;
+         min-height:46px;touch-action:manipulation}
+  button:hover{border-color:var(--acc)}
+  button.on{background:#003b5c;border-color:var(--acc);color:#bfe9ff}
+  button.big{font-size:17px;padding:14px 22px;min-height:56px;min-width:150px}
+  .tlab{font:700 17px ui-monospace,Consolas,monospace;color:var(--acc);min-width:130px;
+        text-align:right}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .hint{color:var(--mut);font-size:12px;margin-top:8px;line-height:1.45}
+  footer{color:#5a6472;font-size:12px;padding:6px 26px 26px;text-align:center}
+  #semjs{background:#3a2a0c;border:2px solid var(--fuel);color:#ffd9a0;border-radius:12px;
+         padding:22px;font-size:16px;line-height:1.6;margin-bottom:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Simulador da bobina de ignição — dwell, energia e reserva de faísca</h1>
+  <p>Mexa nos controles e veja a corrente da bobina, os kV disponíveis e se a vela realmente dispara.</p>
+</header>
+
+<div class="wrap">
+  <div class="playbar">
+    <button id="bPlay" class="big on">PAUSAR</button>
+    <button id="bRst" class="big">&#9198;&nbsp; REINICIAR</button>
+    <div class="scrub"><input type="range" id="sTime" min="0" max="1000" step="1" value="0"></div>
+    <span id="tLab" class="tlab">t = 0,00 ms</span>
+  </div>
+
+  <div id="semjs">
+    <b>Esta página não está rodando.</b><br>
+    Você abriu o arquivo por um visualizador que bloqueia animações.<br><br>
+    <b>Abra assim:</b> salve em <i>Downloads</i> &rarr; abra o <b>Chrome</b> &rarr;
+    menu <b>⋮</b> &rarr; <b>Downloads</b> &rarr; toque em <b>simulador_bobina.html</b>.
+  </div>
+
+  <canvas id="cv" width="1200" height="600"></canvas>
+
+  <div class="controls">
+    <div class="card">
+      <h3>Tensão que chega na bobina</h3>
+      <div class="row"><span class="val" id="vV">13.8 V</span><span class="hint" id="vTag"></span></div>
+      <input type="range" id="sV" min="8" max="15" step="0.1" value="13.8">
+      <div class="presets">
+        <button data-v="13.8">Boa 13,8 V</button>
+        <button data-v="11">Fraca 11 V</button>
+        <button data-v="9.5">Partida 9,5 V</button>
+      </div>
+      <div class="hint">Na partida a tensão cai. Por isso motor com bateria fraca custa a pegar.</div>
+    </div>
+
+    <div class="card">
+      <h3>Resistência do primário</h3>
+      <div class="row"><span class="val" id="vR">0.6 Ω</span><span class="hint" id="rTag"></span></div>
+      <input type="range" id="sR" min="0.3" max="3" step="0.05" value="0.6">
+      <div class="presets">
+        <button data-r="0.6">Boa 0,6 Ω</button>
+        <button data-r="1.4">Alta 1,4 Ω</button>
+        <button data-r="2.4">Muito alta 2,4 Ω</button>
+      </div>
+      <div class="hint">Bobina moderna: 0,4 a 1,0 Ω no primário. Emenda ruim ou mau contato somam resistência.</div>
+    </div>
+
+    <div class="card">
+      <h3>Dwell comandado pela ECU</h3>
+      <div class="row"><span class="val" id="vD">3.0 ms</span><span class="hint">tempo de saturação</span></div>
+      <input type="range" id="sD" min="0.5" max="8" step="0.1" value="3">
+      <div class="hint">É o tempo em que a ECU mantém a bobina ligada na massa, carregando o campo magnético.</div>
+    </div>
+
+    <div class="card">
+      <h3>Folga da vela</h3>
+      <div class="row"><span class="val" id="vG">1.00 mm</span><span class="hint" id="gTag"></span></div>
+      <input type="range" id="sG" min="0.6" max="1.8" step="0.05" value="1">
+      <div class="presets">
+        <button data-g="0.9">Vela nova 0,9 mm</button>
+        <button data-g="1.4">Gasta 1,4 mm</button>
+      </div>
+      <div class="hint">A vela desgasta e a folga aumenta sozinha — e folga maior exige mais kV.</div>
+    </div>
+
+    <div class="card">
+      <h3>Rotação do motor</h3>
+      <div class="row"><span class="val" id="vN">900 rpm</span><span class="hint" id="nTag"></span></div>
+      <input type="range" id="sN" min="600" max="7000" step="50" value="900">
+      <div class="hint">Quanto mais gira, menos tempo existe entre uma faísca e a outra para carregar a bobina.</div>
+    </div>
+
+    <div class="card">
+      <h3>Carga do motor</h3>
+      <div class="row"><span class="val" id="vL">10 %</span><span class="hint" id="lTag"></span></div>
+      <input type="range" id="sL" min="0" max="100" step="1" value="10">
+      <div class="presets">
+        <button data-l="10">Marcha lenta</button>
+        <button data-l="55">Parcial</button>
+        <button data-l="100">Plena carga</button>
+      </div>
+      <div class="hint">Mistura comprimida isola mais: em plena carga a vela precisa de bem mais tensão.</div>
+      <div class="presets" style="margin-top:10px"><button id="bReset">Voltar ao padrão</button></div>
+    </div>
+  </div>
+</div>
+<footer>HP Instrutor · Injeção Eletrônica — modelo didático: i(t) = (V/R)·(1 − e<sup>−t·R/L</sup>) · E = ½·L·i² · L = 3 mH</footer>
+
+<script>
+(function(){
+  const cv=document.getElementById('cv'), g=cv.getContext('2d');
+  const L_H=0.003, I_LIM=8.0, KV_POR_A=4.6;
+  const st={V:13.8,R:0.6,D:3,G:1.0,N:900,LD:10,play:true,t:0,TMAX:8};
+
+  function model(V,R,Dcmd,G,N,LD){
+    const tau=L_H/R*1000, ifin=V/R;
+    const inter=30000/N;                 // ms entre faiscas (4 cilindros)
+    const dmax=Math.max(0.2,inter-0.6);  // tempo disponivel para carregar
+    const limitado=Dcmd>dmax;
+    const D=Math.min(Dcmd,dmax);
+    const ipk=Math.min(I_LIM,ifin*(1-Math.exp(-D/tau)));
+    const E=0.5*L_H*ipk*ipk*1000;        // mJ
+    const kvDisp=KV_POR_A*ipk;
+    const fCarga=0.75+LD/100*0.85;
+    const kvReq=(2.5+7.5*G)*fCarga;
+    const faisca=kvDisp>kvReq;
+    const queima=faisca?Math.min(2.6,E/(kvReq*8)):0;
+    const reserva=kvReq>0?(kvDisp-kvReq)/kvReq*100:0;
+    return {tau,ifin,inter,dmax,limitado,D,ipk,E,kvDisp,kvReq,faisca,queima,reserva,gap:G};
+  }
+  function corrente(m,t){
+    if(t<0) return 0;
+    if(t<=m.D) return Math.min(I_LIM,m.ifin*(1-Math.exp(-t/m.tau)));
+    return 0;                            // colapso instantaneo no corte
+  }
+  // ---- desenho ----
+  function rr(x,y,w,h,r,fill,stroke,lw){
+    g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);
+    g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();
+    if(fill){g.fillStyle=fill;g.fill();}
+    if(stroke){g.strokeStyle=stroke;g.lineWidth=lw||2;g.stroke();}
+  }
+  function txt(s,x,y,size,color,align,bold,mono){
+    g.font=(bold?'700 ':'')+size+'px '+(mono?'ui-monospace,Consolas,monospace':'Segoe UI,Arial,sans-serif');
+    g.fillStyle=color;g.textAlign=align||'left';g.textBaseline='top';g.fillText(s,x,y);
+  }
+  const C={bg:'#0b111a',panel:'#18222f',line:'#2a3a4d',fg:'#e9eff6',mut:'#92a2b6',
+           acc:'#00b0ff',fuel:'#ffa528',grn:'#42d88c',yel:'#ffd640',red:'#ff5656',
+           metal:'#9ca8b8',metalL:'#c6d0de'};
+
+  function desenho(m,t,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('BOBINA E VELA',x0+14,y0+12,13,C.mut,'left',true);
+    const i=corrente(m,t), carregando=t<=m.D, f=Math.min(1,i/I_LIM);
+    const disparo=m.faisca&&t>m.D&&t<=m.D+m.queima;
+    txt(carregando?'carregando':(disparo?'FAÍSCA':'—'),x0+w-14,y0+12,13,
+        carregando?C.acc:(disparo?C.yel:C.mut),'right',true,true);
+
+    const cx=x0+w/2, by=y0+h-150;
+    // corpo da bobina
+    rr(cx-64,y0+46,128,150,8,'#2b3746',C.metal,2);
+    // primario (poucas espiras grossas) - brilha com a corrente
+    const pc='rgb('+Math.round(40+0*f)+','+Math.round(90+80*f)+','+Math.round(120+120*f)+')';
+    g.fillStyle=pc;
+    for(let k=0;k<6;k++) g.fillRect(cx-52,y0+58+k*22,104,12);
+    // secundario (muitas espiras finas)
+    g.strokeStyle='#7d8798';g.lineWidth=1;
+    for(let k=0;k<24;k++){g.beginPath();g.moveTo(cx-38,y0+56+k*5.6);g.lineTo(cx+38,y0+58+k*5.6);g.stroke();}
+    txt('primário',cx-70,y0+70,12,C.acc,'right',true);
+    txt('secundário',cx+70,y0+150,12,C.mut,'left',true);
+    // campo magnetico
+    if(f>0.12){
+      g.strokeStyle='rgba(0,176,255,'+(0.12+0.5*f)+')';g.lineWidth=2;
+      [78,96,114].forEach(function(r){g.beginPath();g.arc(cx,y0+121,r,0,6.283);g.stroke();});
+    }
+    // cabo ate a vela
+    g.strokeStyle='#6b7686';g.lineWidth=6;
+    g.beginPath();g.moveTo(cx,y0+196);g.lineTo(cx,by-58);g.stroke();
+    // ---- vela ----
+    rr(cx-22,by-56,44,30,4,'#e6eaf0',null,0);                 // isolador
+    rr(cx-26,by-26,52,20,3,'#8f9aa9',C.metal,2);              // sextavado
+    g.fillStyle='#7d8798';g.fillRect(cx-17,by-6,34,30);       // rosca
+    g.strokeStyle='#5c6674';g.lineWidth=2;
+    for(let k=0;k<5;k++){g.beginPath();g.moveTo(cx-17,by-2+k*6);g.lineTo(cx+17,by+1+k*6);g.stroke();}
+    const yTip=by+40, gapPx=6+(m.gap-0.6)*13;
+    g.fillStyle='#dfe5ee';g.fillRect(cx-3,by+24,6,yTip-(by+24));   // eletrodo central
+    g.fillStyle=C.metalL;
+    g.fillRect(cx+15,by+20,7,yTip+gapPx-(by+20));                  // massa vertical
+    g.fillRect(cx-4,yTip+gapPx,26,7);                              // massa horizontal
+    txt('folga '+m.gap.toFixed(2)+' mm',cx-34,yTip-4,12,
+        m.gap>1.25?C.red:C.mut,'right',true);
+    // ---- arco ----
+    if(disparo){
+      g.fillStyle='rgba(255,236,130,.20)';
+      g.beginPath();g.arc(cx,yTip+gapPx/2,20+gapPx,0,6.283);g.fill();
+      g.strokeStyle='#fff6c8';g.lineWidth=3;g.beginPath();g.moveTo(cx,yTip);
+      for(let k=1;k<=4;k++) g.lineTo(cx+Math.sin(k*3.1+t*34)*3.5,yTip+k/4*gapPx);
+      g.stroke();
+    } else if(!m.faisca && t>m.D){
+      txt('SEM FAÍSCA',cx+32,yTip+4,14,C.red,'left',true);
+    }
+    // barra de energia
+    const ey=y0+h-52;
+    txt('ENERGIA ARMAZENADA',x0+16,ey-22,12,C.mut,'left',true);
+    txt(m.E.toFixed(0)+' mJ',x0+w-16,ey-26,17,m.E>60?C.grn:(m.E>30?C.yel:C.red),'right',true,true);
+    rr(x0+16,ey,w-32,14,7,'#26303e');
+    rr(x0+16,ey,(w-32)*Math.min(1,m.E/100),14,7,m.E>60?C.grn:(m.E>30?C.yel:C.red));
+  }
+
+  function scopeCorrente(m,t,x0,y0,w,h,TMAX){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('CORRENTE NO PRIMÁRIO',x0+14,y0+12,13,C.mut,'left',true);
+    txt(corrente(m,t).toFixed(2)+' A',x0+w-14,y0+10,17,C.grn,'right',true,true);
+    const gx0=x0+52,gx1=x0+w-16,gy0=y0+38,gy1=y0+h-30, IMAX=I_LIM*1.25;
+    rr(gx0,gy0,gx1-gx0,gy1-gy0,6,'#0a1612','#223c32',2);
+    const X=function(tt){return gx0+4+tt/TMAX*(gx1-gx0-8);},
+          Y=function(a){return gy1-6-a/IMAX*(gy1-gy0-12);};
+    g.strokeStyle='#18302a';g.lineWidth=1;
+    for(let k=1;k<10;k++){g.beginPath();g.moveTo(gx0+k*(gx1-gx0)/10,gy0);g.lineTo(gx0+k*(gx1-gx0)/10,gy1);g.stroke();}
+    // limite da ECU
+    g.strokeStyle=C.yel;g.lineWidth=2;g.setLineDash([7,7]);
+    g.beginPath();g.moveTo(gx0+4,Y(I_LIM));g.lineTo(gx1-4,Y(I_LIM));g.stroke();g.setLineDash([]);
+    txt('limite da ECU  '+I_LIM.toFixed(1)+' A',gx1-8,Y(I_LIM)-18,12,C.yel,'right',true);
+    txt(IMAX.toFixed(0)+' A',gx0-8,gy0,11,C.mut,'right');txt('0',gx0-8,gy1-14,11,C.mut,'right');
+    // faixa de dwell
+    g.fillStyle='rgba(0,176,255,.10)';g.fillRect(X(0),gy0+2,X(m.D)-X(0),gy1-gy0-4);
+    txt('DWELL '+m.D.toFixed(2)+' ms',(X(0)+X(m.D))/2,gy0+6,12,C.acc,'center',true);
+    g.strokeStyle=C.grn;g.lineWidth=3;g.beginPath();
+    for(let tt=0;tt<=TMAX;tt+=0.02){
+      const p=[X(tt),Y(Math.min(IMAX,corrente(m,tt)))];
+      tt===0?g.moveTo(p[0],p[1]):g.lineTo(p[0],p[1]);
+    }
+    g.stroke();
+    g.strokeStyle='rgba(255,255,255,.55)';g.lineWidth=2;
+    g.beginPath();g.moveTo(X(t),gy0);g.lineTo(X(t),gy1);g.stroke();
+    g.fillStyle=C.fg;g.beginPath();g.arc(X(t),Y(Math.min(IMAX,corrente(m,t))),5,0,6.283);g.fill();
+  }
+
+  function scopeKV(m,t,x0,y0,w,h,TMAX){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('PADRÃO DE IGNIÇÃO — SECUNDÁRIO (kV)',x0+14,y0+12,13,C.mut,'left',true);
+    txt(m.kvDisp.toFixed(1)+' kV disponíveis',x0+w-14,y0+12,13,C.yel,'right',true);
+    const gx0=x0+52,gx1=x0+w-16,gy0=y0+38,gy1=y0+h-30;
+    const KMAX=m.faisca?Math.max(12,m.kvReq*1.7):Math.max(12,m.kvReq*1.35,m.kvDisp*1.25);
+    rr(gx0,gy0,gx1-gx0,gy1-gy0,6,'#0a1612','#223c32',2);
+    const X=function(tt){return gx0+4+tt/TMAX*(gx1-gx0-8);},
+          Y=function(k){return gy1-8-k/KMAX*(gy1-gy0-16);};
+    g.strokeStyle='#18302a';g.lineWidth=1;
+    for(let k=1;k<10;k++){g.beginPath();g.moveTo(gx0+k*(gx1-gx0)/10,gy0);g.lineTo(gx0+k*(gx1-gx0)/10,gy1);g.stroke();}
+    // linha do kV necessario
+    g.strokeStyle=C.red;g.lineWidth=2;g.setLineDash([6,6]);
+    g.beginPath();g.moveTo(gx0+4,Y(m.kvReq));g.lineTo(gx1-4,Y(m.kvReq));g.stroke();g.setLineDash([]);
+    txt('kV necessário  '+m.kvReq.toFixed(1),gx1-8,Y(m.kvReq)-18,12,C.red,'right',true);
+    txt(KMAX.toFixed(0)+' kV',gx0-8,gy0,11,C.mut,'right');txt('0',gx0-8,gy1-14,11,C.mut,'right');
+    // traçado
+    g.strokeStyle=C.yel;g.lineWidth=3;g.beginPath();g.moveTo(X(0),Y(0));
+    g.lineTo(X(m.D),Y(0));
+    if(m.faisca){
+      g.lineTo(X(m.D+0.02),Y(m.kvReq));                       // linha de disparo
+      const kvQ=Math.max(1.2,m.kvReq*0.16);
+      g.lineTo(X(m.D+0.06),Y(kvQ));
+      for(let tt=m.D+0.06;tt<=m.D+m.queima;tt+=0.05)
+        g.lineTo(X(tt),Y(kvQ+Math.sin(tt*38)*0.18));          // linha de queima
+      g.lineTo(X(m.D+m.queima),Y(0));
+      for(let tt=m.D+m.queima;tt<=Math.min(TMAX,m.D+m.queima+1.6);tt+=0.03){
+        const u=tt-(m.D+m.queima);
+        g.lineTo(X(tt),Y(Math.sin(u*22)*2.2*Math.exp(-u*2.2)));  // oscilacoes da bobina
+      }
+    }else{
+      g.lineTo(X(m.D+0.02),Y(m.kvDisp));                      // sobe e nao vence
+      for(let tt=m.D+0.02;tt<=Math.min(TMAX,m.D+1.4);tt+=0.03){
+        const u=tt-m.D;
+        g.lineTo(X(tt),Y(Math.max(0,m.kvDisp*Math.exp(-u*3.4)*Math.cos(u*16))));
+      }
+    }
+    g.lineTo(X(TMAX),Y(0));g.stroke();
+    if(m.faisca){
+      txt('disparo',X(m.D)+6,Y(m.kvReq)-2,11,C.yel,'left',true);
+      txt('queima '+m.queima.toFixed(2)+' ms',X(m.D+m.queima)+6,Y(m.kvReq*0.16)-18,11,C.yel,'left',true);
+    }else{
+      txt('não venceu a folga da vela',X(m.D)+8,Y(m.kvDisp)-4,12,C.red,'left',true);
+    }
+    g.strokeStyle='rgba(255,255,255,.55)';g.lineWidth=2;
+    g.beginPath();g.moveTo(X(t),gy0);g.lineTo(X(t),gy1);g.stroke();
+    txt('t = '+t.toFixed(2)+' ms',gx0,gy1+6,12,C.acc,'left',true,true);
+  }
+
+  function leituras(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    const linhas=[
+      ['Corrente de pico',m.ipk.toFixed(2)+' A',m.ipk>7?C.grn:(m.ipk>4?C.yel:C.red)],
+      ['Energia armazenada',m.E.toFixed(0)+' mJ',m.E>60?C.grn:(m.E>30?C.yel:C.red)],
+      ['kV disponíveis',m.kvDisp.toFixed(1)+' kV',C.fg],
+      ['kV necessários',m.kvReq.toFixed(1)+' kV',C.fg],
+      ['Tempo de queima',m.faisca?m.queima.toFixed(2)+' ms':'sem faísca',
+        m.faisca?(m.queima>0.9?C.grn:C.yel):C.red]
+    ];
+    let y=y0+16;
+    linhas.forEach(function(r){
+      txt(r[0],x0+16,y+4,13,'#c3cede');
+      txt(r[1],x0+w-16,y,16,r[2],'right',true,true);
+      y+=34;
+    });
+    y+=6;
+    txt('RESERVA DE IGNIÇÃO',x0+16,y+8,13,C.mut,'left',true);
+    const rc=m.reserva>80?C.grn:(m.reserva>25?C.yel:C.red);
+    txt((m.reserva>0?'+':'')+m.reserva.toFixed(0)+' %',x0+w-16,y,26,rc,'right',true,true);
+    rr(x0+16,y+34,w-32,16,8,'#26303e');
+    if(m.reserva>0) rr(x0+16,y+34,(w-32)*Math.min(1,m.reserva/250),16,8,rc);
+    y+=64;
+    g.strokeStyle=C.line;g.lineWidth=1;
+    g.beginPath();g.moveTo(x0+16,y);g.lineTo(x0+w-16,y);g.stroke();
+    txt('TEMPO DISPONÍVEL PELA ROTAÇÃO',x0+16,y+12,12,C.mut,'left',true);
+    txt('Entre uma faísca e outra',x0+16,y+40,13,'#c3cede');
+    txt(m.inter.toFixed(2)+' ms',x0+w-16,y+36,16,C.fg,'right',true,true);
+    txt('Dwell que a ECU conseguiu',x0+16,y+72,13,'#c3cede');
+    txt(m.D.toFixed(2)+' ms',x0+w-16,y+68,16,m.limitado?C.red:C.grn,'right',true,true);
+    if(m.limitado){
+      txt('A rotação cortou o dwell: em giro alto',x0+16,y+100,12,C.red);
+      txt('a bobina não termina de carregar.',x0+16,y+116,12,C.red);
+    }else{
+      txt('Sobra tempo para carregar a bobina',x0+16,y+100,12,C.mut);
+      txt('nessa rotação.',x0+16,y+116,12,C.mut);
+    }
+  }
+
+  function veredito(m,x0,y0,w,h){
+    let t1,t2,c;
+    if(!m.faisca){c=C.red;t1='FALHA DE IGNIÇÃO — NÃO HÁ FAÍSCA';
+      t2='Os kV disponíveis não vencem a folga da vela. Motor falhando, tranco em carga e luz de injeção acesa.';}
+    else if(m.reserva>80){c=C.grn;t1='IGNIÇÃO SAUDÁVEL';
+      t2='Sobra tensão de reserva. A faísca aguenta aceleração, carga e vela um pouco desgastada.';}
+    else if(m.reserva>25){c=C.yel;t1='RESERVA BAIXA';
+      t2='Ainda dispara, mas sem folga. Uma acelerada forte ou a vela desgastando mais já provoca falha.';}
+    else{c=C.red;t1='NO LIMITE DA FALHA';
+      t2='Dispara por pouco. Qualquer aumento de carga ou de folga da vela apaga a faísca.';}
+    rr(x0,y0,w,h,12,'rgba(255,255,255,0.03)',c,2);
+    g.fillStyle=c;g.beginPath();g.arc(x0+30,y0+h/2,11,0,6.283);g.fill();
+    txt(t1,x0+52,y0+14,17,c,'left',true);
+    txt(t2,x0+52,y0+40,13,'#c3cede');
+  }
+
+  function layout(){
+    const estreito=window.innerWidth<980;
+    const W=estreito?820:1200,H=estreito?1116:600;
+    if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}
+    return estreito
+      ? {W:W,H:H,des:[16,16,250,470],read:[278,16,526,470],cur:[16,502,788,232],
+         kv:[16,750,788,244],verd:[16,1010,788,92]}
+      : {W:W,H:H,des:[16,16,296,470],cur:[328,16,488,232],kv:[328,254,488,232],
+         read:[832,16,352,470],verd:[16,502,1168,84]};
+  }
+
+  function frame(){
+    const m=model(st.V,st.R,st.D,st.G,st.N,st.LD);
+    const TMAX=m.D+3.4;
+    if(st.play){st.t+=TMAX/160;if(st.t>TMAX)st.t=0;}
+    if(st.t>TMAX)st.t=0;
+    st.TMAX=TMAX;
+    const L=layout(), aviso=document.getElementById('semjs');
+    if(aviso) aviso.style.display='none';
+    g.fillStyle=C.bg;g.fillRect(0,0,L.W,L.H);
+    desenho(m,st.t,L.des[0],L.des[1],L.des[2],L.des[3]);
+    scopeCorrente(m,st.t,L.cur[0],L.cur[1],L.cur[2],L.cur[3],TMAX);
+    scopeKV(m,st.t,L.kv[0],L.kv[1],L.kv[2],L.kv[3],TMAX);
+    leituras(m,L.read[0],L.read[1],L.read[2],L.read[3]);
+    veredito(m,L.verd[0],L.verd[1],L.verd[2],L.verd[3]);
+    if(!st.play){g.strokeStyle=C.yel;g.lineWidth=6;g.strokeRect(3,3,L.W-6,L.H-6);}
+    const sT=document.getElementById('sTime');
+    if(st.play) sT.value=Math.round(st.t/TMAX*1000);
+    document.getElementById('tLab').textContent='t = '+st.t.toFixed(2).replace('.',',')+' ms';
+    requestAnimationFrame(frame);
+  }
+
+  // ---- controles ----
+  const sV=document.getElementById('sV'),sR=document.getElementById('sR'),
+        sD=document.getElementById('sD'),sG=document.getElementById('sG'),
+        sN=document.getElementById('sN'),sL=document.getElementById('sL');
+  function tag(el,s,c){el.textContent=s;el.style.color=c;}
+  function sync(){
+    st.V=+sV.value;st.R=+sR.value;st.D=+sD.value;st.G=+sG.value;st.N=+sN.value;st.LD=+sL.value;
+    document.getElementById('vV').textContent=st.V.toFixed(1)+' V';
+    document.getElementById('vR').textContent=st.R.toFixed(2)+' Ω';
+    document.getElementById('vD').textContent=st.D.toFixed(1)+' ms';
+    document.getElementById('vG').textContent=st.G.toFixed(2)+' mm';
+    document.getElementById('vN').textContent=st.N.toFixed(0)+' rpm';
+    document.getElementById('vL').textContent=st.LD.toFixed(0)+' %';
+    const vt=document.getElementById('vTag');
+    st.V>=12.5?tag(vt,'alimentação boa','#42d88c'):st.V>=10.5?tag(vt,'queda de tensão','#ffd640'):tag(vt,'tensão de partida','#ff5656');
+    const rt=document.getElementById('rTag');
+    st.R<=1?tag(rt,'dentro da faixa','#42d88c'):st.R<=1.8?tag(rt,'acima da faixa','#ffd640'):tag(rt,'resistência alta','#ff5656');
+    const gt=document.getElementById('gTag');
+    st.G<=1.1?tag(gt,'folga normal','#42d88c'):st.G<=1.4?tag(gt,'vela desgastada','#ffd640'):tag(gt,'folga excessiva','#ff5656');
+    const nt=document.getElementById('nTag');
+    st.N<=2500?tag(nt,'giro baixo','#42d88c'):st.N<=5000?tag(nt,'giro médio','#ffd640'):tag(nt,'giro alto','#ff5656');
+    const lt=document.getElementById('lTag');
+    st.LD<=30?tag(lt,'pouca carga','#42d88c'):st.LD<=70?tag(lt,'carga parcial','#ffd640'):tag(lt,'plena carga','#ff5656');
+  }
+  [sV,sR,sD,sG,sN,sL].forEach(function(e){e.addEventListener('input',sync);});
+  document.querySelectorAll('button[data-v]').forEach(function(b){b.onclick=function(){sV.value=b.dataset.v;sync();};});
+  document.querySelectorAll('button[data-r]').forEach(function(b){b.onclick=function(){sR.value=b.dataset.r;sync();};});
+  document.querySelectorAll('button[data-g]').forEach(function(b){b.onclick=function(){sG.value=b.dataset.g;sync();};});
+  document.querySelectorAll('button[data-l]').forEach(function(b){b.onclick=function(){sL.value=b.dataset.l;sync();};});
+  const bp=document.getElementById('bPlay');
+  function setPlay(v){st.play=v;bp.innerHTML=v?'PAUSAR':'▶&nbsp; RODAR';bp.classList.toggle('on',v);}
+  bp.onclick=function(){setPlay(!st.play);};
+  document.getElementById('bRst').onclick=function(){st.t=0;setPlay(true);};
+  cv.addEventListener('click',function(){setPlay(!st.play);});
+  const sTime=document.getElementById('sTime');
+  sTime.addEventListener('input',function(){setPlay(false);st.t=+sTime.value/1000*(st.TMAX||8);});
+  document.getElementById('bReset').onclick=function(){
+    sV.value=13.8;sR.value=0.6;sD.value=3;sG.value=1;sN.value=900;sL.value=10;
+    st.t=0;sync();setPlay(true);};
+  sync();frame();
+})();
+</script>
+</body>
+</html>

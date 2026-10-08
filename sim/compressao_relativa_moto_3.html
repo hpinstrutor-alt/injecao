@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Compressão Relativa pela Tensão de Bateria — Motos</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:#0d131b;color:#e8eef7;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+#semjs{background:#ffa528;color:#1a1204;padding:14px 16px;font-size:15px;line-height:1.45;font-weight:600}
+.wrap{max-width:1240px;margin:0 auto;padding:8px 10px 30px}
+h1{font-size:18px;margin:2px 2px 2px;letter-spacing:.2px}
+.sub{font-size:12.5px;color:#8fa3bd;margin:0 2px 6px}
+canvas{width:100%;display:block;border-radius:14px;background:#0d131b;touch-action:manipulation}
+.cx{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;align-items:start}
+@media(max-width:860px){.cx{grid-template-columns:1fr}}
+.card{background:#18222f;border:1px solid #2a3849;border-radius:14px;padding:12px}
+.card h2{font-size:12px;letter-spacing:1.2px;color:#8fa3bd;margin:0 0 10px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:7px}
+button{font:inherit;font-size:13px;font-weight:600;color:#cddcee;background:#22303f;
+  border:1px solid #34455a;border-radius:10px;padding:9px 12px;cursor:pointer;min-height:40px}
+button.on{background:#00b0ff;border-color:#00b0ff;color:#04121c}
+button.warn.on{background:#ff5656;border-color:#ff5656;color:#210606}
+button.roxo.on{background:#b08cff;border-color:#b08cff;color:#150a26}
+button.amar.on{background:#ffd640;border-color:#ffd640;color:#221a00}
+.row{display:flex;align-items:center;gap:10px;margin:9px 0}
+.row .nm{font-size:13px;width:112px;flex:none;color:#b9c8db;font-weight:600}
+.row .vl{font-size:13px;width:52px;flex:none;text-align:right;color:#e8eef7;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:34px;background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:8px;background:#2b3a4d;border-radius:6px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;
+  background:#00b0ff;border:3px solid #0d131b;margin-top:-9px}
+input[type=range]::-moz-range-track{height:8px;background:#2b3a4d;border-radius:6px}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#00b0ff;border:3px solid #0d131b}
+.hint{font-size:12px;color:#7d90a8;line-height:1.5;margin-top:8px}
+.cil{border-top:1px solid #24313f;padding-top:8px;margin-top:8px}
+.cil:first-of-type{border-top:0;margin-top:0;padding-top:0}
+.cil .top{display:flex;align-items:center;gap:8px}
+.cil .top b{font-size:13px;flex:1}
+.cil button{font-size:11.5px;padding:7px 9px;min-height:34px}
+</style>
+</head>
+<body>
+<div id="semjs">
+  <b>Este simulador precisa de JavaScript.</b><br>
+  Se você abriu por dentro do WhatsApp, Instagram ou e-mail, toque nos três pontinhos
+  e escolha <b>“Abrir no navegador”</b> (Chrome / Safari). Aí tudo funciona.
+</div>
+
+<div class="wrap">
+  <h1>COMPRESSÃO RELATIVA PELA TENSÃO DE BATERIA</h1>
+  <p class="sub">Cada compressão obriga o motor de partida a puxar mais corrente — e a tensão da bateria cai.
+     Cilindro fraco = queda mais rasa. Sem tirar vela, sem manômetro.</p>
+
+  <canvas id="cv"></canvas>
+
+  <div class="cx">
+    <div class="card">
+      <h2>MOTOR</h2>
+      <div class="btns" id="bMot"></div>
+      <div class="hint" id="notaMotor"></div>
+    </div>
+
+    <div class="card">
+      <h2>ANIMAÇÃO</h2>
+      <div class="btns">
+        <button id="bPlay" class="on">❚❚ PAUSAR</button>
+        <button class="vel" data-v="1">1×</button>
+        <button class="vel on" data-v="0.3">0,3×</button>
+        <button class="vel" data-v="0.1">0,1×</button>
+        <button class="vel" data-v="0.04">0,04× lentíssimo</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div class="nm">Posição manual</div>
+        <input type="range" id="sAng" min="0" max="1439" value="0" step="1">
+        <div class="vl" id="vAng">0°</div>
+      </div>
+      <div class="hint">Arraste a barra para parar em qualquer ponto do ciclo e explicar com calma.
+        Ao arrastar, a animação pausa sozinha.</div>
+    </div>
+
+    <div class="card">
+      <h2>SINAL NO OSCILOSCÓPIO</h2>
+      <div class="btns">
+        <button id="bSpark" class="roxo">+ DISPARO DA BOBINA — CILINDRO 1</button>
+      </div>
+      <div class="hint">Liga um segundo canal com o comando da bobina do cilindro 1.
+        Serve para ancorar o sinal: a queda que aparece junto com esse disparo é a do cilindro 1.</div>
+    </div>
+
+    <div class="card">
+      <h2>CONDIÇÕES DO TESTE</h2>
+      <div class="btns">
+        <button id="bBat" class="on">BATERIA BOA</button>
+        <button id="bDesc" class="amar">DESCOMPRESSOR AUTOMÁTICO</button>
+      </div>
+      <div class="hint">Bateria fraca derruba a rotação de partida e exagera todas as quedas —
+        o teste perde o valor. Descompressor alivia a compressão nos primeiros giros e achata tudo.</div>
+    </div>
+
+    <div class="card" style="grid-column:1/-1">
+      <h2>COMO LER O SINAL</h2>
+      <div class="hint" style="margin-top:0">
+        <b style="color:#ffd640">Por que a queda muda de tamanho:</b> o motor de partida acelera o
+        virabrequim durante o intervalo entre um PMS e outro. Intervalo maior = mais tempo acelerando =
+        o pistão chega no PMS com mais rotação = mais impacto na bateria = <b>queda mais funda</b>.
+        Intervalo curto = chega devagar = <b>queda mais rasa</b>. A linha tracejada amarela mostra
+        essa rotação instantânea, e o número em amarelo é com quantos rpm o pistão chega em cada PMS.
+      </div>
+    </div>
+
+    <div class="card" style="grid-column:1/-1">
+      <h2>DEFEITO POR CILINDRO</h2>
+      <div id="cils"></div>
+      <div class="hint">“Válvula vazando” simula folga de válvula fora de especificação:
+        a válvula não assenta, parte da mistura escapa na compressão e a queda de tensão fica mais rasa.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ------------------------------------------------------------------ */
+/* motores reais — defasagem de ignição                                */
+/* ------------------------------------------------------------------ */
+var MOTORES = {
+ '4': { nome:'4 CILINDROS EM LINHA', curto:'4 EM LINHA', n:4,
+        ev:[{c:1,a:0},{c:2,a:180},{c:4,a:360},{c:3,a:540}],
+        rot:['CIL 1','CIL 2','CIL 3','CIL 4'],
+        base:[92,90,91,92], bal:true,
+        nota:'BALANCEADO. Ordem 1-2-4-3, um PMS a cada 180°. Como o intervalo é sempre igual, o virabrequim chega em todos os PMS com a mesma rotação — logo as quedas têm o MESMO ESPAÇAMENTO e a MESMA PROFUNDIDADE. Aqui, queda diferente é defeito.' },
+
+ '3e':{ nome:'3 CILINDROS — TRIUMPH STREET TRIPLE', curto:'STREET TRIPLE', n:3,
+        ev:[{c:1,a:0},{c:2,a:240},{c:3,a:480}],
+        rot:['CIL 1','CIL 2','CIL 3'],
+        base:[91,92,90], bal:true,
+        nota:'BALANCEADO. Virabrequim 120°, defasagem regular de 240°. Intervalo sempre igual = mesma rotação em todos os PMS = três quedas iguais em espaçamento e em profundidade.' },
+
+ '3t':{ nome:'3 CILINDROS — TRIUMPH TIGER 900 (T-PLANE)', curto:'TIGER 900 T-PLANE', n:3,
+        ev:[{c:1,a:0},{c:3,a:180},{c:2,a:450}],
+        rot:['CIL 1','CIL 2','CIL 3'],
+        base:[91,92,90], bal:false,
+        nota:'DESBALANCEADO DE FÁBRICA. Virabrequim T-plane: 180° · 270° · 270°. Depois do intervalo de 270° o virabrequim ganha rotação e chega no PMS mais rápido — queda MAIS FUNDA. Depois do intervalo curto de 180° ele chega mais devagar — queda MAIS RASA. Isso é construção, não defeito.' },
+
+ '2b':{ nome:'2 CILINDROS BOXER — BMW R 1250 GS', curto:'BOXER R 1250 GS', n:2,
+        ev:[{c:1,a:0},{c:2,a:360}],
+        rot:['ESQUERDO','DIREITO'],
+        base:[92,91], bal:true,
+        nota:'BALANCEADO. Boxer de virabrequim 360°: um PMS a cada 360°, sempre o mesmo intervalo. As duas quedas saem iguais em espaçamento e em profundidade.' },
+
+ '2p':{ nome:'2 CILINDROS PARALELO — VIRABREQUIM 270°', curto:'PARALELO 270°', n:2,
+        ev:[{c:1,a:0},{c:2,a:270}],
+        rot:['CIL 1','CIL 2'],
+        base:[92,91], bal:false,
+        nota:'DESBALANCEADO POR PROJETO. Paralelo de virabrequim 270° (MT-07, Africa Twin): 270° · 450°. Nos 450° o virabrequim acelera bastante e chega forte no PMS do cilindro 1 — queda funda. Nos 270° chega devagar no cilindro 2 — queda rasa.' },
+
+ '2v':{ nome:'2 CILINDROS EM V 45° — HARLEY MILWAUKEE-EIGHT', curto:'HARLEY V 45°', n:2,
+        ev:[{c:1,a:0},{c:2,a:315}],
+        rot:['DIANTEIRO','TRASEIRO'],
+        base:[92,91], bal:false,
+        nota:'DESBALANCEADO POR CONSTRUÇÃO. V de 45° com pino de manivela único: 315° · 405°. É o “potato-potato”. Depois dos 405° o virabrequim vem mais rápido e a queda do cilindro dianteiro fica mais funda; depois dos 315° a do traseiro fica mais rasa.' }
+};
+
+var ORDEM = ['4','3e','3t','2b','2p','2v'];
+
+/* ------------------------------------------------------------------ */
+/* estado                                                             */
+/* ------------------------------------------------------------------ */
+var st = {
+  mot:'4', ang:0, play:true, vel:0.3,
+  bat:true, desc:false, spark:false,
+  comp:[92,90,91,92], vaz:[false,false,false,false]
+};
+function M(){ return MOTORES[st.mot]; }
+
+/* cores */
+var BG='#0d131b', PANEL='#18222f', PANEL2='#131c27', LINE='#2a3849',
+    FG='#e8eef7', MUTED='#8fa3bd', ACC='#00b0ff', GRN='#42d88c',
+    YEL='#ffd640', RED='#ff5656', ROXO='#b08cff', FUEL='#ffa528';
+
+/* ------------------------------------------------------------------ */
+/* física simplificada do teste                                       */
+/* ------------------------------------------------------------------ */
+function vRepouso(){ return st.bat ? 12.6 : 11.4; }
+function vCrank(){  return st.bat ? 10.6 : 8.7;  }
+function rpmPartida(){ return st.bat ? 260 : 165; }
+function tCiclo(){ return 120000 / rpmPartida(); }            /* ms por 720° */
+function quedaMax(){                                           /* queda de um cilindro 100% */
+  var q = st.bat ? 1.05 : 1.75;
+  if(st.desc) q *= 0.72;
+  return q;
+}
+function quedaCil(i){ return quedaMax() * (st.comp[i]/92); }
+var LARG = 33;                                                 /* largura da queda em graus */
+
+/* ------------------------------------------------------------------ */
+/* ROTAÇÃO INSTANTÂNEA DO VIRABREQUIM                                  */
+/* O motor de partida acelera o virabrequim nos intervalos e ele        */
+/* desacelera em cada compressão. Intervalo maior = mais tempo          */
+/* acelerando = chega no PMS mais rápido = puxa mais corrente =         */
+/* queda de tensão MAIS FUNDA.                                          */
+/* ------------------------------------------------------------------ */
+var NS = 360;                       /* amostras de 2° em 720° */
+var PERF = null, PERFkey = '';
+function perfil(){
+  var key = st.mot+'|'+(st.bat?1:0)+'|'+(st.desc?1:0)+'|'+st.comp.join(',');
+  if(PERF && PERFkey===key) return PERF;
+  var ev = M().ev, carga = new Array(NS), arr = new Array(NS), i, k, wq, p2;
+  var kd = st.desc ? 0.72 : 1;
+  for(i=0;i<NS;i++){
+    var th=i*2, c=0;
+    for(k=0;k<ev.length;k++){
+      for(wq=-1;wq<=1;wq++){
+        var d = th - (ev[k].a + wq*720);
+        if(d>-170 && d<170) c += Math.exp(-(d*d)/(56*56)) * (st.comp[ev[k].c-1]/92);
+      }
+    }
+    carga[i] = c*kd;
+  }
+  var v=0.6;
+  for(p2=0;p2<8;p2++){
+    for(i=0;i<NS;i++){
+      v += 0.013*(1.0-v) - 0.0115*carga[i];
+      if(v<0.15) v=0.15; if(v>1.4) v=1.4;
+      arr[i]=v;
+    }
+  }
+  var sm=0; for(i=0;i<NS;i++) sm+=arr[i]; sm/=NS;
+  for(i=0;i<NS;i++) arr[i]/=sm;                    /* média = 1 */
+  PERF=arr; PERFkey=key; return arr;
+}
+function velAng(ang){
+  var a=((ang%720)+720)%720, w=perfil();
+  var f=a/2, i0=Math.floor(f)%NS, i1=(i0+1)%NS, t=f-Math.floor(f);
+  return w[i0]*(1-t)+w[i1]*t;
+}
+/* fator de profundidade: rotação com que o virabrequim CHEGA no PMS */
+function fatorQ(k){
+  var ev=M().ev, i, soma=0;
+  for(i=0;i<ev.length;i++) soma += velAng(ev[i].a-95);
+  var med = soma/ev.length;
+  var f = 1 + 1.25*(velAng(ev[k].a-95)/med - 1);
+  if(f<0.55) f=0.55; if(f>1.45) f=1.45;
+  return f;
+}
+function quedaEv(k){ return quedaMax()*(st.comp[M().ev[k].c-1]/92)*fatorQ(k); }
+function rpmEv(k){ return Math.round(rpmPartida()*velAng(M().ev[k].a-95)); }
+
+function eventoDoIndice(i){                                    /* i = índice de cilindro (0..n-1) */
+  var ev = M().ev;
+  for(var k=0;k<ev.length;k++) if(ev[k].c === i+1) return ev[k];
+  return ev[0];
+}
+function tensaoAng(ang){
+  var a2 = ((ang%720)+720)%720;
+  var v = vCrank(), ev = M().ev;
+  for(var k=0;k<ev.length;k++){
+    var q = quedaEv(k);
+    for(var w=-1;w<=1;w++){
+      var d = a2 - (ev[k].a + w*720);
+      if(d>-180 && d<180) v -= q * Math.exp(-(d*d)/(LARG*LARG));
+    }
+  }
+  return v;
+}
+function angAgora(){ return ((st.ang%720)+720)%720; }
+
+/* posição do pistão do cilindro i (0 = PMS, 1 = PMI) */
+function faseCil(i){                                            /* 0..720 desde o PMS de compressão */
+  var a = eventoDoIndice(i).a;
+  var t = (angAgora() - a) % 720; if(t<0) t += 720;
+  return t;
+}
+function posPistao(i){
+  var th = faseCil(i) * Math.PI/180;
+  return 0.5 - 0.5*Math.cos(th);
+}
+/* nome do tempo */
+function tempoCil(i){
+  var t = faseCil(i);
+  if(t<180) return 'EXPANSÃO';
+  if(t<360) return 'ESCAPE';
+  if(t<540) return 'ADMISSÃO';
+  return 'COMPRESSÃO';
+}
+function abreAdm(i){ var t=faseCil(i); if(t>=352&&t<545){ var u=(t-352)/193; return Math.sin(u*Math.PI);} return 0; }
+function abreEsc(i){ var t=faseCil(i); if(t>=170&&t<368){ var u=(t-170)/198; return Math.sin(u*Math.PI);} return 0; }
+
+function analise(){
+  var n=M().n, mn=1e9, mx=-1e9, pior=0, i;
+  for(i=0;i<n;i++){ var q=st.comp[i];
+    if(q<mn){mn=q;pior=i;} if(q>mx)mx=q; }
+  return { mn:mn, mx:mx, pior:pior, varp: mx>0 ? (mx-mn)/mx*100 : 0 };
+}
+
+/* ------------------------------------------------------------------ */
+/* canvas                                                             */
+/* ------------------------------------------------------------------ */
+var cv = document.getElementById('cv'), g = cv.getContext('2d');
+var W=1200, H=790, DPR=1, retrato=false;
+
+function medir(){
+  var cssW = cv.clientWidth || (cv.parentNode.clientWidth - 20);
+  retrato = cssW < 900;
+  W = retrato ? 720 : 1200;
+  H = (st.mot==='2v') ? (retrato ? 1190 : 934) : (retrato ? 1104 : 872);
+  DPR = Math.min(2, window.devicePixelRatio||1);
+  cv.width = W*DPR; cv.height = H*DPR;
+  cv.style.height = (cssW * H / W) + 'px';
+  g.setTransform(DPR,0,0,DPR,0,0);
+  LARGmed = cssW;
+}
+var LARGmed = 0;
+function confereLargura(){
+  var lw = cv.clientWidth || (cv.parentNode.clientWidth-20);
+  if(Math.abs(lw-LARGmed) > 1) medir();
+}
+function layout(){
+  if(st.mot==='2v'){
+    if(retrato) return { sco:[10,52,700,352], mot:[10,412,700,656], ver:[10,1076,700,86] };
+    return       { sco:[16,52,1168,340], mot:[16,400,1168,450], ver:[16,858,1168,66] };
+  }
+  if(retrato) return { sco:[10,52,700,352], mot:[10,412,700,570], ver:[10,990,700,86] };
+  return       { sco:[16,52,1168,340], mot:[16,400,1168,368], ver:[16,776,1168,66] };
+}
+
+/* helpers */
+function rr(x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y); g.lineTo(x+w-r,y); g.quadraticCurveTo(x+w,y,x+w,y+r);
+  g.lineTo(x+w,y+h-r); g.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  g.lineTo(x+r,y+h); g.quadraticCurveTo(x,y+h,x,y+h-r);
+  g.lineTo(x,y+r); g.quadraticCurveTo(x,y,x+r,y); g.closePath();
+}
+function painel(x,y,w,h,cor){
+  rr(x,y,w,h,13); g.fillStyle=cor||PANEL; g.fill();
+  g.strokeStyle=LINE; g.lineWidth=1.5; g.stroke();
+}
+function txt(s,x,y,f,c,al){ g.font=f; g.fillStyle=c; g.textAlign=al||'left'; g.textBaseline='top'; g.fillText(s,x,y); }
+var ROTC = 0, ESPC = 0, ESPP = 0, COMPACTO = 0, SQX = 1;   /* rotação / espelho / portas / cilindro estreito */
+function txtR(s,x,y,f,c,al){
+  if(!ROTC && !ESPC && SQX===1){ txt(s,x,y,f,c,al); return; }
+  g.save(); g.translate(x,y);
+  if(SQX!==1) g.scale(1/SQX,1);
+  if(ESPC) g.scale(-1,1);
+  g.rotate(-ROTC);
+  txt(s,0,0,f,c,al); g.restore();
+}
+
+/* ------------------------------------------------------------------ */
+/* OSCILOSCÓPIO                                                       */
+/* ------------------------------------------------------------------ */
+function scope(r){
+  var x=r[0],y=r[1],w=r[2],h=r[3];
+  painel(x,y,w,h);
+  txt(retrato ? 'TENSÃO DA BATERIA NA PARTIDA'
+             : 'TENSÃO DA BATERIA DURANTE A PARTIDA — a tela rola, o “agora” é a borda direita',
+      x+14,y+11,'700 12px system-ui',MUTED);
+  txt(retrato ? M().curto : M().nome, x+w-14, y+11, '700 12px system-ui', ACC, 'right');
+
+  var gy0 = y+32, gy1 = y+h - (st.spark ? 76 : 26);
+  var gx0 = x+56, gx1 = x+w-14;
+  rr(gx0,gy0,gx1-gx0,gy1-gy0,6); g.fillStyle='#081018'; g.fill();
+  g.strokeStyle='#1e2c3a'; g.lineWidth=1.5; g.stroke();
+
+  var JAN = 1440;                       /* janela de 2 ciclos */
+  var A1 = st.ang, A0 = A1 - JAN;
+  function X(a){ return gx0 + (a-A0)/JAN*(gx1-gx0); }
+
+  var vTop = vRepouso()+0.20, vBot = vCrank() - quedaMax()*1.95;
+  function Y(v){ return gy1 - (v-vBot)/(vTop-vBot)*(gy1-gy0); }
+
+  g.save(); g.beginPath(); g.rect(gx0,gy0,gx1-gx0,gy1-gy0); g.clip();
+
+  /* grade fixa */
+  var dv;
+  for(dv=1;dv<10;dv++){
+    var gxv = gx0 + dv*(gx1-gx0)/10;
+    g.beginPath(); g.moveTo(gxv,gy0); g.lineTo(gxv,gy1);
+    g.strokeStyle='#16232f'; g.lineWidth=1; g.stroke();
+  }
+  var vv;
+  for(vv=Math.ceil(vBot); vv<=vTop; vv++){
+    g.beginPath(); g.moveTo(gx0,Y(vv)); g.lineTo(gx1,Y(vv));
+    g.strokeStyle='#16232f'; g.lineWidth=1; g.stroke();
+    txt(vv+' V', gx0-8, Y(vv)-7, '600 11px system-ui', '#5e7288','right');
+  }
+
+  /* linha de repouso */
+  g.setLineDash([5,5]); g.beginPath(); g.moveTo(gx0,Y(vRepouso())); g.lineTo(gx1,Y(vRepouso()));
+  g.strokeStyle='rgba(143,163,189,.55)'; g.lineWidth=1.5; g.stroke(); g.setLineDash([]);
+  txt('repouso '+vRepouso().toFixed(1)+' V', gx0+8, Y(vRepouso())+3,'600 11px system-ui','#7d91a7');
+
+  /* linha de referência — só faz sentido em motor balanceado */
+  var an0 = analise(), ev = M().ev;
+  if(M().bal){
+    var sq=0, kq;
+    for(kq=0;kq<ev.length;kq++) sq+=quedaEv(kq);
+    var yRef = Y(vCrank() - sq/ev.length);
+    g.setLineDash([4,4]); g.beginPath(); g.moveTo(gx0,yRef); g.lineTo(gx1,yRef);
+    g.strokeStyle='rgba(66,216,140,.55)'; g.lineWidth=1.5; g.stroke(); g.setLineDash([]);
+    txt(retrato ? 'média das quedas' : 'média das quedas — motor balanceado e sadio: todas param nesta linha',
+        gx1-8, yRef+4,'600 10.5px system-ui','rgba(66,216,140,.85)','right');
+  } else {
+    txt(retrato ? 'desbalanceado: profundidade diferente é normal'
+               : 'motor desbalanceado: profundidades diferentes aqui são NORMAIS',
+        gx1-8, gy1-38,'600 10.5px system-ui','rgba(255,214,64,.85)','right');
+  }
+
+  /* traço + área */
+  var pts=[], i, PASSO=JAN/540;
+  for(i=A0;i<=A1+0.001;i+=PASSO) pts.push([X(i), Y(tensaoAng(i))]);
+  g.beginPath(); g.moveTo(pts[0][0],gy1);
+  for(i=0;i<pts.length;i++) g.lineTo(pts[i][0],pts[i][1]);
+  g.lineTo(pts[pts.length-1][0],gy1); g.closePath();
+  g.fillStyle='rgba(0,176,255,.10)'; g.fill();
+  g.beginPath();
+  for(i=0;i<pts.length;i++){ if(i===0) g.moveTo(pts[i][0],pts[i][1]); else g.lineTo(pts[i][0],pts[i][1]); }
+  g.strokeStyle=ACC; g.lineWidth=2.6; g.lineJoin='round';
+  g.shadowColor='rgba(0,176,255,.55)'; g.shadowBlur=8; g.stroke(); g.shadowBlur=0;
+
+  /* ---- rotação instantânea ---- */
+  var yb1 = Y(vCrank())-16, yb0 = Math.max(gy0+(retrato?100:74), Y(vCrank())-56);
+  var vmn=9, vmx=-9, ii;
+  for(ii=0;ii<720;ii+=4){ var vq=velAng(ii); if(vq<vmn)vmn=vq; if(vq>vmx)vmx=vq; }
+  if(vmx-vmn<0.02) vmx=vmn+0.02;
+  function YV(v){ return yb1 - (v-vmn)/(vmx-vmn)*(yb1-yb0); }
+  g.beginPath();
+  for(i=A0;i<=A1+0.001;i+=PASSO*1.5){ var py2=YV(velAng(i));
+    if(i===A0) g.moveTo(X(i),py2); else g.lineTo(X(i),py2); }
+  g.strokeStyle='rgba(255,214,64,.75)'; g.lineWidth=2; g.setLineDash([6,4]); g.stroke(); g.setLineDash([]);
+  txt(retrato ? 'ROTAÇÃO INSTANTÂNEA DO VIRABREQUIM'
+             : 'ROTAÇÃO INSTANTÂNEA — acelera nos intervalos, trava em cada compressão',
+      gx0+8, yb0-13,'700 10.5px system-ui','rgba(255,214,64,.85)');
+
+  /* ocorrências visíveis de cada evento */
+  function ocor(base){
+    var res=[], n0=Math.floor((A0-base)/720)-1, q;
+    for(q=n0;q<=n0+4;q++){ var v2=base+q*720; if(v2>=A0-2 && v2<=A1+2) res.push(v2); }
+    return res;
+  }
+
+  /* pontos de chegada no PMS, sobre a curva de rotação */
+  var kr, oc, oi;
+  for(kr=0;kr<ev.length;kr++){
+    oc = ocor(ev[kr].a-95);
+    for(oi=0;oi<oc.length;oi++){
+      g.beginPath(); g.arc(X(oc[oi]),YV(velAng(oc[oi])),3.5,0,6.2832); g.fillStyle=YEL; g.fill();
+      var yrp = YV(velAng(oc[oi]));
+      if(oi===oc.length-1 && (X(oc[oi])>gx0+420 || yrp>yb0+16))
+        txt(rpmEv(kr)+' rpm', X(oc[oi]), yrp-15,'700 10px system-ui',YEL,'center');
+    }
+  }
+
+  /* marcadores das quedas + etiquetas */
+  var chipsR=[[],[],[]], k;
+  for(k=0;k<ev.length;k++){
+    var idx = ev[k].c-1;
+    oc = ocor(ev[k].a);
+    for(oi=0;oi<oc.length;oi++){
+      var yy = Y(tensaoAng(oc[oi]));
+      g.beginPath(); g.arc(X(oc[oi]),yy,4.5,0,6.2832);
+      g.fillStyle = st.vaz[idx] ? RED : GRN; g.fill();
+    }
+    if(oc.length){
+      var aa = oc[oc.length-1], yy2 = Y(tensaoAng(aa));
+      var CWc = retrato?78:100, CHc = retrato?28:32;
+      var lx2 = Math.min(gx1-CWc/2-4, Math.max(gx0+CWc/2+2, X(aa)));
+      var ch, ri, ok2;
+      for(ri=0;ri<3;ri++){
+        ok2=true;
+        for(ch=0;ch<chipsR[ri].length;ch++)
+          if(Math.abs(chipsR[ri][ch]-lx2)<CWc+4){ ok2=false; break; }
+        if(ok2) break;
+      }
+      if(ri>2) ri=2;
+      chipsR[ri].push(lx2);
+      var ry2 = gy0+2 + ri*(CHc+2);
+      g.beginPath(); g.moveTo(X(aa),ry2+CHc); g.lineTo(X(aa),yy2-8);
+      g.strokeStyle = st.vaz[idx]?'rgba(255,86,86,.35)':'rgba(159,180,203,.25)';
+      g.lineWidth=1; g.stroke();
+      rr(lx2-CWc/2, ry2, CWc, CHc, 7);
+      g.fillStyle='rgba(9,15,22,.92)'; g.fill();
+      g.strokeStyle = st.vaz[idx]?'rgba(255,86,86,.6)':'rgba(52,69,90,.95)'; g.lineWidth=1; g.stroke();
+      txt(M().rot[idx], lx2, ry2+2, '700 '+(retrato?9.5:11)+'px system-ui',
+          st.vaz[idx]?RED:'#cddcee','center');
+      txt(quedaEv(k).toFixed(2).replace('.',',')+' V', lx2, ry2+(retrato?14:17),
+          '700 '+(retrato?10:11)+'px system-ui', st.vaz[idx]?'#ff9a9a':ACC,'center');
+    }
+  }
+
+  /* setas de defasagem entre PMS consecutivos */
+  var todos=[], t2;
+  for(k=0;k<ev.length;k++){
+    oc = ocor(ev[k].a);
+    for(oi=0;oi<oc.length;oi++) todos.push(oc[oi]);
+  }
+  todos.sort(function(p,q){return p-q;});
+  var ybase = gy1-7;
+  for(t2=0;t2+1<todos.length;t2++){
+    var a1=todos[t2], a2=todos[t2+1];
+    if(X(a2)-X(a1) < 26) continue;
+    g.beginPath(); g.moveTo(X(a1)+3,ybase); g.lineTo(X(a2)-3,ybase);
+    g.strokeStyle='rgba(255,214,64,.45)'; g.lineWidth=1.5; g.stroke();
+    txt(Math.round(a2-a1)+'°', (X(a1)+X(a2))/2, ybase-15, '700 11.5px system-ui', YEL, 'center');
+  }
+
+  /* “agora” na borda direita */
+  g.beginPath(); g.moveTo(gx1-1,gy0); g.lineTo(gx1-1,gy1);
+  g.strokeStyle=FUEL; g.lineWidth=2; g.stroke();
+  g.beginPath(); g.arc(gx1-1,Y(tensaoAng(A1)),5.5,0,6.2832); g.fillStyle=FUEL; g.fill();
+  g.beginPath(); g.moveTo(gx1-8,gy0); g.lineTo(gx1+6,gy0); g.lineTo(gx1-1,gy0+9); g.closePath();
+  g.fillStyle=FUEL; g.fill();
+  g.restore();
+
+  /* canal da bobina */
+  if(st.spark){
+    var sy0=gy1+10, sy1=y+h-16;
+    rr(gx0,sy0,gx1-gx0,sy1-sy0,6); g.fillStyle='#0c0716'; g.fill();
+    g.strokeStyle='#2b1f47'; g.lineWidth=1.5; g.stroke();
+    txt('COMANDO DA BOBINA — '+M().rot[0], gx0+8, sy0+4,'700 10.5px system-ui',ROXO);
+    g.save(); g.beginPath(); g.rect(gx0,sy0,gx1-gx0,sy1-sy0); g.clip();
+    var yA=sy1-7, yB=sy0+21;
+    var fs2 = ocor(eventoDoIndice(0).a-14), q2;
+    for(q2=-1;q2<fs2.length;q2++){
+      var fire = (q2<0) ? fs2[0]-720 : fs2[q2];
+      var dw   = fire - 62;
+      g.fillStyle='rgba(176,140,255,.28)';
+      g.fillRect(X(dw), yB, X(fire)-X(dw), yA-yB);
+      g.beginPath();
+      g.moveTo(X(dw)-60,yA); g.lineTo(X(dw),yA); g.lineTo(X(dw),yB);
+      g.lineTo(X(fire),yB); g.lineTo(X(fire),yA);
+      g.strokeStyle=ROXO; g.lineWidth=2.2; g.stroke();
+      g.beginPath(); g.moveTo(X(fire),yA); g.lineTo(X(fire),sy0+13);
+      g.strokeStyle='#efe4ff'; g.lineWidth=2.4; g.stroke();
+      if(X(fire)>gx0+150 && X(fire)<gx1-90){
+        txt('dwell', (X(dw)+X(fire))/2, yB+5,'600 10px system-ui','#c7b0ff','center');
+        txt('faísca', X(fire)+5, sy0+11,'700 10px system-ui','#efe4ff');
+      }
+    }
+    g.beginPath(); g.moveTo(gx1-1,sy0); g.lineTo(gx1-1,sy1); g.strokeStyle=FUEL; g.lineWidth=2; g.stroke();
+    g.restore();
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* DESENHO DO CILINDRO                                                */
+/* ------------------------------------------------------------------ */
+/* espaço virtual 220 x 360 */
+var CW=220, CH=360;
+function cilindro(idx){
+  var pos = posPistao(idx);
+  var th  = faseCil(idx)*Math.PI/180;
+  var adm = abreAdm(idx), esc = abreEsc(idx);
+  var fase = faseCil(idx);
+  var comprimindo = (fase>=540);
+  var vaz = st.vaz[idx];
+  var comp = st.comp[idx];
+
+  /* cinemática */
+  var Rc=44, Lr=138, cxk=110, cyk=300;
+  var pinX = cxk + Rc*Math.sin(th), pinY = cyk - Rc*Math.cos(th);
+  var Yp   = cyk - Rc*Math.cos(th) - Math.sqrt(Lr*Lr - Rc*Rc*Math.sin(th)*Math.sin(th));
+  var crown = Yp - 24;                      /* topo do pistão: 94 no PMS, 182 no PMI */
+
+  var bx0=52, bx1=168, bw=bx1-bx0;
+  var roof=92, f;
+
+  if(SQX!==1){ g.save(); g.translate(110,0); g.scale(SQX,1); g.translate(-110,0); }
+
+  /* ---------- dutos ---------- */
+  var DX0 = COMPACTO ? 26 : 6;
+  function duto(x1,x2,cor,label,al){
+    var gd=g.createLinearGradient(x1,0,x2,0);
+    gd.addColorStop(0,'#222c38'); gd.addColorStop(1,'#39485a');
+    g.beginPath(); g.moveTo(x1,44); g.lineTo(x2,54); g.lineTo(x2,80); g.lineTo(x1,74); g.closePath();
+    g.fillStyle=gd; g.fill(); g.strokeStyle='#4c5c70'; g.lineWidth=1.2; g.stroke();
+    txtR(label, x1, (COMPACTO?4:24),'700 12px system-ui',cor,al);
+  }
+  function dutoEsc(){
+    var gd=g.createLinearGradient(DX0,0,42,0);
+    gd.addColorStop(0,'#33222a'); gd.addColorStop(1,'#4a3540');
+    g.beginPath(); g.moveTo(DX0,44); g.lineTo(42,54); g.lineTo(42,80); g.lineTo(DX0,74); g.closePath();
+    g.fillStyle=gd; g.fill(); g.strokeStyle='#6b4550'; g.lineWidth=1.2; g.stroke();
+  }
+  if(ESPP){                                   /* admissão na direita (cilindro do V) */
+    g.save(); g.translate(CW,0); g.scale(-1,1);
+    duto(DX0,42,'#6fd3a0','','left');
+    g.restore();
+    txtR('ADM', CW-DX0, (COMPACTO?4:24),'700 12px system-ui','#6fd3a0','right');
+    dutoEsc();
+    txtR('ESC', DX0, (COMPACTO?4:24),'700 12px system-ui','#e08a8a','left');
+  } else {
+    duto(DX0,42,'#6fd3a0','ADM','left');
+    g.save(); g.translate(CW,0); g.scale(-1,1);
+    dutoEsc();
+    g.restore();
+    txtR('ESC', CW-DX0, (COMPACTO?4:24),'700 12px system-ui','#e08a8a','right');
+  }
+
+  /* ---------- aletas do cilindro ---------- */
+  for(f=0;f<10;f++){
+    var fy = 104 + f*17;
+    var fw = COMPACTO ? (15 - Math.abs(f-4.5)*0.8) : (30 - Math.abs(f-4.5)*1.6);
+    g.fillStyle = f%2 ? '#3d4b5a' : '#485869';
+    rr(bx0-fw, fy, fw+8, 10, 3); g.fill();
+    rr(bx1-8, fy, fw+8, 10, 3); g.fill();
+  }
+
+  /* ---------- bloco / camisa ---------- */
+  var gr = g.createLinearGradient(bx0,0,bx1,0);
+  gr.addColorStop(0,'#35414f'); gr.addColorStop(.26,'#5d6e80');
+  gr.addColorStop(.55,'#465565'); gr.addColorStop(1,'#2b3542');
+  rr(bx0-9,96,bw+18,186,6); g.fillStyle=gr; g.fill();
+  g.strokeStyle='#8b9dae'; g.lineWidth=1.3; g.stroke();
+
+  var gi = g.createLinearGradient(bx0,0,bx1,0);
+  gi.addColorStop(0,'#0d141c'); gi.addColorStop(.5,'#1a2531'); gi.addColorStop(1,'#0a1018');
+  g.fillStyle=gi; g.fillRect(bx0,roof,bw,190);
+
+  /* ---------- pressão na câmara ---------- */
+  var press=0;
+  if(comprimindo){ var u=(fase-540)/180; press=Math.pow(u,2.1)*(comp/92); if(vaz) press*=0.5; }
+  else if(fase<90){ press=Math.max(0,1-fase/90)*(comp/92)*(vaz?0.45:1); }
+  if(crown>roof+2){
+    var alpha=0.08+press*0.75;
+    var cor = press>0.5 ? '255,150,40' : '0,176,255';
+    var cg=g.createLinearGradient(0,roof,0,crown);
+    cg.addColorStop(0,'rgba('+cor+','+alpha+')');
+    cg.addColorStop(1,'rgba('+cor+','+(alpha*0.2)+')');
+    g.fillStyle=cg; g.fillRect(bx0,roof,bw,crown-roof);
+  }
+  /* moléculas comprimidas */
+  if(crown>roof+8){
+    var nmol = 10;
+    for(var mm=0;mm<nmol;mm++){
+      var sx2 = bx0+8 + ((mm*37)%1000)/1000*(bw-16);
+      var sy2 = roof+5 + ((mm*61+Math.floor(angAgora()*0.7))%100)/100*(crown-roof-10);
+      g.beginPath(); g.arc(sx2,sy2,2.1,0,6.2832);
+      g.fillStyle = press>0.5?'rgba(255,200,140,.75)':'rgba(150,205,255,.5)'; g.fill();
+    }
+  }
+
+  /* ---------- cabeçote ---------- */
+  var hg=g.createLinearGradient(0,22,0,96);
+  hg.addColorStop(0,'#6c7e91'); hg.addColorStop(.55,'#4c5b6c'); hg.addColorStop(1,'#374353');
+  g.beginPath();
+  g.moveTo(34,34); g.quadraticCurveTo(34,22,48,22); g.lineTo(172,22);
+  g.quadraticCurveTo(186,22,186,34); g.lineTo(186,96); g.lineTo(34,96); g.closePath();
+  g.fillStyle=hg; g.fill(); g.strokeStyle='#93a5b6'; g.lineWidth=1.3; g.stroke();
+  /* teto da câmara */
+  g.beginPath(); g.moveTo(bx0,roof); g.quadraticCurveTo(110,roof-16,bx1,roof);
+  g.lineTo(bx1,roof+2); g.quadraticCurveTo(110,roof-13,bx0,roof+2); g.closePath();
+  g.fillStyle='#5d6d7e'; g.fill();
+
+  /* ---------- válvulas ---------- */
+  function valvula(sx,sy,dir,aber,cor,nome){
+    var d=aber*15;
+    g.save(); g.translate(sx,sy); g.rotate(dir*0.26);
+    /* guia */
+    g.fillStyle='#3b4756'; rr(-6,-40,12,26,3); g.fill();
+    /* mola */
+    g.strokeStyle='#9aa9b8'; g.lineWidth=1.7;
+    for(var m=0;m<4;m++){
+      g.beginPath();
+      g.ellipse ? g.ellipse(0,-34+m*8+d*0.5,10,3.2,0,0,6.2832)
+                : g.arc(0,-34+m*8+d*0.5,6,0,6.2832);
+      g.stroke();
+    }
+    /* haste */
+    g.fillStyle='#cfdae5'; g.fillRect(-2.6,-46+d,5.2,52);
+    /* prato */
+    g.beginPath();
+    g.moveTo(-15,3+d); g.lineTo(15,3+d); g.lineTo(8.5,13+d); g.lineTo(-8.5,13+d); g.closePath();
+    g.fillStyle = aber>0.02 ? cor : '#b6c4d2'; g.fill();
+    g.strokeStyle='#eaf1f8'; g.lineWidth=1; g.stroke();
+    g.restore();
+  }
+  valvula(84, 79,-1, ESPP?esc:adm, ESPP?RED:GRN);
+  valvula(136,79, 1, ESPP?adm:esc, ESPP?GRN:RED);
+
+  /* ---------- vazamento por folga fora de especificação ---------- */
+  if(vaz){
+    g.save(); g.translate(ESPP?84:136, 79); g.rotate(ESPP?-0.26:0.26);
+    if(ESPP) g.scale(-1,1);
+    /* fresta */
+    g.strokeStyle=RED; g.lineWidth=2.4;
+    g.beginPath(); g.moveTo(-16,15); g.lineTo(16,15); g.stroke();
+    if(comprimindo || fase<70){
+      for(var p=0;p<7;p++){
+        var u2=((angAgora()*2.2+p*37)%100)/100;
+        g.beginPath(); g.arc(2+u2*26, 12-u2*26, 3.6-u2*2.4, 0, 6.2832);
+        g.fillStyle='rgba(255,86,86,'+(0.8-u2*0.75)+')'; g.fill();
+      }
+    }
+    g.restore();
+    rr(2,1,100,19,6); g.fillStyle='rgba(255,86,86,.2)'; g.fill();
+    g.strokeStyle=RED; g.lineWidth=1.4; g.stroke();
+    txtR('VÁLVULA VAZANDO', 52, 5.5, '700 9.5px system-ui', '#ff9a9a', 'center');
+  }
+
+  /* ---------- vela ---------- */
+  g.fillStyle='#aebbc9'; rr(101,0,18,16,3); g.fill();
+  g.fillStyle='#8d9caa'; rr(103,16,14,14,2); g.fill();
+  g.fillStyle='#d9e3ec'; rr(105,30,10,20,2); g.fill();
+  g.fillStyle='#c9d5e0'; rr(106,50,8,26,2); g.fill();
+  g.strokeStyle='#dbe5ee'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(110,76); g.lineTo(110,88); g.moveTo(101,86); g.lineTo(110,86); g.stroke();
+
+  var faisca = st.spark && idx===0 && ((angAgora()-eventoDoIndice(0).a+734)%720)<14;
+  if(faisca){
+    g.save();
+    var fgr=g.createRadialGradient(110,88,1,110,88,22);
+    fgr.addColorStop(0,'#ffffff'); fgr.addColorStop(.35,'#d9c2ff'); fgr.addColorStop(1,'rgba(176,140,255,0)');
+    g.beginPath(); g.arc(110,88,22,0,6.2832); g.fillStyle=fgr; g.fill();
+    g.restore();
+  }
+
+  /* ---------- pistão ---------- */
+  var pg=g.createLinearGradient(bx0,0,bx1,0);
+  pg.addColorStop(0,'#76848f'); pg.addColorStop(.24,'#c6d2de');
+  pg.addColorStop(.56,'#94a3b2'); pg.addColorStop(1,'#57646f');
+  rr(bx0+2,crown,bw-4,54,4); g.fillStyle=pg; g.fill();
+  g.strokeStyle='#dde6ee'; g.lineWidth=1; g.stroke();
+  g.beginPath(); g.moveTo(bx0+2,crown+5);
+  g.quadraticCurveTo(110,crown-8,bx1-2,crown+5);
+  g.lineTo(bx1-2,crown+1); g.quadraticCurveTo(110,crown-11,bx0+2,crown+1); g.closePath();
+  g.fillStyle='#dbe5ee'; g.fill();
+  for(var an=0;an<3;an++){
+    g.fillStyle = an<2 ? '#232d38' : '#333e4b';
+    g.fillRect(bx0+2, crown+13+an*8, bw-4, 3.6);
+  }
+  g.beginPath(); g.arc(110,crown+36,8.5,0,6.2832);
+  g.fillStyle='#333d49'; g.fill(); g.strokeStyle='#9aa9b8'; g.lineWidth=1.2; g.stroke();
+
+  if(SQX!==1) g.restore();          /* biela e virabrequim ficam redondos */
+
+  /* ---------- biela ---------- */
+  g.beginPath();
+  g.moveTo(110-7,crown+36); g.lineTo(pinX-9.5,pinY);
+  g.lineTo(pinX+9.5,pinY);  g.lineTo(110+7,crown+36); g.closePath();
+  var bgr=g.createLinearGradient(88,0,132,0);
+  bgr.addColorStop(0,'#5d6b78'); bgr.addColorStop(.45,'#aebdc9'); bgr.addColorStop(1,'#4f5c69');
+  g.fillStyle=bgr; g.fill(); g.strokeStyle='#c6d3dd'; g.lineWidth=1; g.stroke();
+
+  /* ---------- virabrequim ---------- */
+  g.beginPath(); g.arc(cxk,cyk,Rc+9,0,6.2832);
+  g.fillStyle='#1d2733'; g.fill(); g.strokeStyle='#3c4a59'; g.lineWidth=2; g.stroke();
+  g.beginPath(); g.moveTo(cxk,cyk); g.lineTo(pinX,pinY);
+  g.strokeStyle='#7d8d9c'; g.lineWidth=14; g.lineCap='round'; g.stroke(); g.lineCap='butt';
+  g.beginPath(); g.arc(pinX,pinY,9,0,6.2832); g.fillStyle='#c9d5e0'; g.fill();
+  g.strokeStyle='#eaf1f8'; g.lineWidth=1; g.stroke();
+  g.beginPath(); g.arc(cxk,cyk,13,0,6.2832); g.fillStyle='#8b9aaa'; g.fill();
+  g.strokeStyle='#e2eaf2'; g.lineWidth=1.4; g.stroke();
+  /* seta de sentido */
+  g.beginPath(); g.arc(cxk,cyk,Rc+9,-1.2,-0.2); g.strokeStyle='rgba(0,176,255,.5)'; g.lineWidth=2; g.stroke();
+}
+
+function arquitetura(cx,cy,sc){
+  var m=st.mot, arr, i;
+  if(m==='2b')            arr=[[-90,0],[90,0]];
+  else if(m==='2v')       arr=[[-22.5,0],[22.5,0]];
+  else if(m==='2p')       arr=[[0,-10],[0,10]];
+  else if(m.charAt(0)==='3') arr=[[0,-16],[0,0],[0,16]];
+  else                    arr=[[0,-24],[0,-8],[0,8],[0,24]];
+  for(i=0;i<arr.length;i++){
+    g.save();
+    g.translate(cx+arr[i][1]*sc, cy);
+    g.rotate(arr[i][0]*Math.PI/180);
+    rr(-5.5*sc, -27*sc, 11*sc, 25*sc, 2.5*sc);
+    g.fillStyle='rgba(0,176,255,.30)'; g.fill();
+    g.strokeStyle='rgba(0,176,255,.75)'; g.lineWidth=1.2; g.stroke();
+    g.restore();
+  }
+  g.beginPath(); g.arc(cx,cy,4.2*sc,0,6.2832); g.fillStyle='#9fb4cb'; g.fill();
+}
+
+/* ------------------------------------------------------------------ */
+/* PAINEL DO MOTOR                                                    */
+/* ------------------------------------------------------------------ */
+function motor(r){
+  var x=r[0],y=r[1],w=r[2],h=r[3];
+  painel(x,y,w,h);
+  txt('DENTRO DOS CILINDROS — POSIÇÃO REAL DO VIRABREQUIM', x+14,y+11,'700 12px system-ui',MUTED);
+  txt('ciclo em '+Math.round(angAgora())+'°  de 720°', x+w-14,y+11,'700 12px system-ui','#6b7f95','right');
+  if(!retrato) txt('arquitetura', x+w-248, y+20,'600 11px system-ui','#5f7288','right');
+  arquitetura(x+w-(retrato?60:212), y+(retrato?44:26), retrato?0.6:0.85);
+
+  var n=M().n;
+
+  /* ---------- V-TWIN 45°: cilindros no V, pino de manivela único ---------- */
+  if(st.mot==='2v'){
+    var topV=y+34, hhV=h-46;
+    var kv = Math.min((w-70)/372, (hhV-46)/390);
+    var vcx = x+w/2, vcy = topV + 4 + 308*kv;
+    var ld, ang2, fsv;
+    for(ld=0;ld<2;ld++){
+      ang2 = (ld===0 ? 0.3927 : -0.3927);        /* ±22,5° */
+      fsv = faseCil(ld);
+      var atv2 = fsv>=540 || fsv<40;
+      g.save();
+      g.translate(vcx,vcy); g.rotate(ang2); g.scale(kv,kv); g.translate(-110,-300);
+      rr(66,-8,88,290,9);
+      g.fillStyle = atv2 ? 'rgba(0,176,255,.08)' : 'rgba(255,255,255,.015)'; g.fill();
+      g.strokeStyle = st.vaz[ld] ? 'rgba(255,86,86,.6)' : (atv2?'rgba(0,176,255,.4)':'rgba(255,255,255,.07)');
+      g.lineWidth=1.6/kv; g.stroke();
+      ROTC = ang2; ESPP = (ld===1?1:0); COMPACTO = 1; SQX = 0.62;
+      cilindro(ld);
+      ROTC = 0; ESPP = 0; COMPACTO = 0; SQX = 1;
+      g.restore();
+    }
+    txt('pino de manivela único — os dois PMS ficam 45° um do outro', vcx, vcy+60*kv,
+        '600 11px system-ui','rgba(159,180,203,.55)','center');
+    for(ld=0;ld<2;ld++){
+      var lxv = vcx + (ld===0 ? 132*kv : -132*kv), lyv = vcy + 86*kv;
+      txt(M().rot[ld], lxv, lyv, '700 14px system-ui', st.vaz[ld]?RED:FG,'center');
+      txt(tempoCil(ld)+'  ·  '+st.comp[ld]+'%', lxv, lyv+18,
+          '600 11.5px system-ui', st.vaz[ld]?'#ff9a9a':MUTED,'center');
+    }
+    return;
+  }
+
+  /* ---------- BOXER: cilindros deitados, opostos, virabrequim comum ---------- */
+  if(st.mot==='2b'){
+    var topB=y+34, hhB=h-46;
+    var kb = Math.min((w-70)/640, (hhB-46)/250);
+    var ccx = x+w/2, ccy = topB + (hhB-34)/2;
+    var lado, sinal, fs2;
+    for(lado=0;lado<2;lado++){
+      sinal = lado===0 ? -1 : 1;
+      fs2 = faseCil(lado);
+      var atv = fs2>=540 || fs2<40;
+      rr(ccx + (lado===0? -318*kb : 18*kb), ccy-124*kb, 300*kb, 248*kb, 12);
+      g.fillStyle = atv ? 'rgba(0,176,255,.08)' : 'rgba(255,255,255,.015)'; g.fill();
+      g.strokeStyle = st.vaz[lado] ? 'rgba(255,86,86,.6)' : (atv?'rgba(0,176,255,.4)':'rgba(255,255,255,.06)');
+      g.lineWidth=1.6; g.stroke();
+    }
+    for(lado=0;lado<2;lado++){
+      var rot = (lado===0 ? -Math.PI/2 : Math.PI/2);
+      g.save();
+      g.translate(ccx, ccy); g.rotate(rot); g.scale(kb,kb);
+      if(lado===0) g.scale(-1,1);            /* banco esquerdo é o espelho do direito */
+      g.translate(-110,-300);
+      ROTC = rot; ESPC = (lado===0?1:0);
+      cilindro(lado);
+      ROTC = 0; ESPC = 0;
+      g.restore();
+    }
+    for(lado=0;lado<2;lado++){
+      var lxb = ccx + (lado===0 ? -168*kb : 168*kb);
+      var lyb = ccy + 128*kb;
+      txt(M().rot[lado], lxb, lyb, '700 14px system-ui', st.vaz[lado]?RED:FG,'center');
+      txt(tempoCil(lado)+'  ·  '+st.comp[lado]+'%', lxb, lyb+18,
+          '600 11.5px system-ui', st.vaz[lado]?'#ff9a9a':MUTED,'center');
+    }
+    return;
+  }
+
+  var cols = retrato ? (n>=3 ? 2 : n) : n;
+  var rows = Math.ceil(n/cols);
+  var top=y+32, hh=h-42;
+  var cellW = (w-16)/cols, cellH = hh/rows;
+  var LAB = 40;
+  var k = Math.min((cellW-14)/CW, (cellH-LAB-12)/CH);
+  var boxW = CW*k+14, boxH = CH*k+LAB+8;
+  var offX = x + (w - cols*boxW)/2;
+  var offY = top + (hh - rows*boxH)/2;
+
+  for(var i=0;i<n;i++){
+    var cc=i%cols, rw2=Math.floor(i/cols);
+    var cx0 = offX + cc*boxW, cy0 = offY + rw2*boxH;
+    var fs = faseCil(i);
+    var ativo = fs>=540 || fs<40;
+    rr(cx0+3, cy0, boxW-6, boxH-6, 10);
+    g.fillStyle = ativo ? 'rgba(0,176,255,.08)' : 'rgba(255,255,255,.015)'; g.fill();
+    g.strokeStyle = st.vaz[i] ? 'rgba(255,86,86,.6)' : (ativo?'rgba(0,176,255,.4)':'rgba(255,255,255,.06)');
+    g.lineWidth=1.6; g.stroke();
+
+    g.save();
+    g.beginPath(); rr(cx0+3, cy0, boxW-6, boxH-6, 10); g.clip();
+    g.translate(cx0+7, cy0+4);
+    g.scale(k,k);
+    cilindro(i);
+    g.restore();
+
+    var lx = cx0+boxW/2, ly = cy0+boxH-LAB;
+    var fA = Math.max(11, Math.round(14*Math.min(1,k*1.4)));
+    var fB = Math.max(9.5, Math.round(11.5*Math.min(1,k*1.4)));
+    txt(M().rot[i], lx, ly, '700 '+fA+'px system-ui', st.vaz[i]?RED:FG,'center');
+    txt(tempoCil(i)+'  ·  '+st.comp[i]+'%', lx, ly+fA+4,
+        '600 '+fB+'px system-ui', st.vaz[i]?'#ff9a9a':MUTED,'center');
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* VEREDITO                                                           */
+/* ------------------------------------------------------------------ */
+function veredito(r){
+  var x=r[0],y=r[1],w=r[2],h=r[3];
+  var a=analise(), cor, t1, t2;
+  if(!st.bat){
+    cor=YEL; t1='TESTE INVÁLIDO — BATERIA FRACA';
+    t2='Com '+vRepouso().toFixed(1)+' V em repouso e '+rpmPartida()+' rpm de partida, todas as quedas ficam exageradas. Carregue ou troque a bateria antes de julgar qualquer cilindro.';
+  } else if(a.varp<=10){
+    cor=GRN; t1='COMPRESSÃO UNIFORME — VARIAÇÃO DE '+a.varp.toFixed(0)+'%';
+    t2 = M().bal
+      ? 'Motor balanceado: intervalo igual entre os PMS, mesma rotação de chegada, quedas com a mesma profundidade. É assim que tem que ser.'
+      : 'Motor desbalanceado: as quedas saem com profundidades diferentes porque o virabrequim chega em cada PMS com uma rotação diferente. Isso é a defasagem do motor, NÃO é defeito — compare cada cilindro com o padrão desse motor, nunca um com o outro.';
+  } else if(a.varp<=20){
+    cor=YEL; t1='ATENÇÃO — VARIAÇÃO DE '+a.varp.toFixed(0)+'% NO '+M().rot[a.pior];
+    t2='Diferença no limite. Confira a folga das válvulas desse cilindro antes de abrir o motor.'
+       + (M().bal ? '' : ' Cuidado: parte da diferença que você vê na tela é a defasagem do motor.');
+  } else {
+    cor=RED; t1='FALHA NO '+M().rot[a.pior]+' — VARIAÇÃO DE '+a.varp.toFixed(0)+'%';
+    t2='Queda visivelmente mais rasa mesmo chegando com boa rotação: esse cilindro não está segurando pressão. Comece pela folga de válvula fora de especificação; depois, teste de estanqueidade.';
+  }
+  if(st.desc && st.bat && a.varp<=10){
+    t2='Descompressor atuando: todas as quedas ficam mais rasas por igual. Compare os cilindros entre si, nunca com um valor de tabela.';
+  }
+  rr(x,y,w,h,13); g.fillStyle='rgba(255,255,255,.03)'; g.fill();
+  g.strokeStyle=cor; g.lineWidth=2; g.stroke();
+  g.beginPath(); g.arc(x+26,y+22,9,0,6.2832); g.fillStyle=cor; g.fill();
+  txt(t1, x+46, y+11, '700 15px system-ui', cor);
+  /* quebra de linha */
+  g.font='400 12.5px system-ui';
+  var maxw=w-60, pal=t2.split(' '), lin='', ly2=y+33, nl=0;
+  for(var wi=0; wi<pal.length; wi++){
+    var tent = lin ? lin+' '+pal[wi] : pal[wi];
+    if(g.measureText(tent).width>maxw && lin){
+      txt(lin, x+46, ly2, '400 12.5px system-ui', '#b9c8db'); ly2+=17; lin=pal[wi]; nl++;
+      if(nl>=2) break;
+    } else lin=tent;
+  }
+  if(lin) txt(lin, x+46, ly2, '400 12.5px system-ui', '#b9c8db');
+}
+
+/* ------------------------------------------------------------------ */
+/* LOOP                                                               */
+/* ------------------------------------------------------------------ */
+var last=0, primeiro=true;
+function frame(ts){
+  if(primeiro){ document.getElementById('semjs').style.display='none'; primeiro=false; }
+  if(!last) last=ts;
+  var dt=Math.min(60, ts-last); last=ts;
+  if(st.play){
+    var degS = rpmPartida()*6 * st.vel * velAng(st.ang);   /* graus/s reais */
+    st.ang += degS*dt/1000;
+    if(st.ang>1440000) st.ang-=1440000;
+    var sl=document.getElementById('sAng');
+    if(document.activeElement!==sl) sl.value=Math.round(st.ang%1440);
+    document.getElementById('vAng').textContent=Math.round(st.ang%1440)+'°';
+  }
+  confereLargura();
+  g.clearRect(0,0,W,H);
+  g.fillStyle=BG; g.fillRect(0,0,W,H);
+  txt('COMPRESSÃO RELATIVA', 16, 12, '700 19px system-ui', FG);
+  txt(st.bat? rpmPartida()+' rpm de partida · bateria boa' : rpmPartida()+' rpm de partida · bateria fraca',
+      W-16, 17, '600 12px system-ui', st.bat?MUTED:YEL, 'right');
+  var L=layout();
+  scope(L.sco); motor(L.mot); veredito(L.ver);
+  requestAnimationFrame(frame);
+}
+
+/* ------------------------------------------------------------------ */
+/* CONTROLES                                                          */
+/* ------------------------------------------------------------------ */
+function montaMotores(){
+  var box=document.getElementById('bMot'); box.innerHTML='';
+  for(var i=0;i<ORDEM.length;i++){
+    (function(key){
+      var b=document.createElement('button');
+      b.textContent=MOTORES[key].curto;
+      if(key===st.mot) b.className='on';
+      b.onclick=function(){ trocaMotor(key); };
+      box.appendChild(b);
+    })(ORDEM[i]);
+  }
+  document.getElementById('notaMotor').textContent=M().nota;
+}
+function trocaMotor(key){
+  st.mot=key;
+  medir();
+  var m=MOTORES[key];
+  st.comp=m.base.slice();
+  st.vaz=[]; for(var i=0;i<m.n;i++) st.vaz.push(false);
+  montaMotores(); montaCilindros();
+}
+function montaCilindros(){
+  var box=document.getElementById('cils'); box.innerHTML='';
+  var m=M();
+  for(var i=0;i<m.n;i++){
+    (function(i){
+      var d=document.createElement('div'); d.className='cil';
+      var top=document.createElement('div'); top.className='top';
+      var b=document.createElement('b'); b.textContent=m.rot[i];
+      var bt=document.createElement('button'); bt.className='warn'+(st.vaz[i]?' on':'');
+      bt.textContent='VÁLVULA VAZANDO (FOLGA FORA DE ESPEC.)';
+      top.appendChild(b); top.appendChild(bt); d.appendChild(top);
+
+      var row=document.createElement('div'); row.className='row';
+      var nm=document.createElement('div'); nm.className='nm'; nm.textContent='Compressão';
+      var sl=document.createElement('input'); sl.type='range'; sl.min=40; sl.max=100; sl.step=1; sl.value=st.comp[i];
+      var vl=document.createElement('div'); vl.className='vl'; vl.textContent=st.comp[i]+'%';
+      row.appendChild(nm); row.appendChild(sl); row.appendChild(vl); d.appendChild(row);
+
+      sl.oninput=function(){ st.comp[i]=parseInt(sl.value,10); vl.textContent=st.comp[i]+'%'; };
+      bt.onclick=function(){
+        st.vaz[i]=!st.vaz[i];
+        bt.className='warn'+(st.vaz[i]?' on':'');
+        st.comp[i]= st.vaz[i] ? 58 : m.base[i];
+        sl.value=st.comp[i]; vl.textContent=st.comp[i]+'%';
+      };
+      box.appendChild(d);
+    })(i);
+  }
+}
+
+var bPlay=document.getElementById('bPlay');
+bPlay.onclick=function(){
+  st.play=!st.play;
+  bPlay.className = st.play?'on':'';
+  bPlay.textContent = st.play?'❚❚ PAUSAR':'▶ CONTINUAR';
+};
+var vels=document.querySelectorAll('.vel');
+for(var q=0;q<vels.length;q++){
+  (function(b){
+    b.onclick=function(){
+      st.vel=parseFloat(b.getAttribute('data-v'));
+      for(var z=0;z<vels.length;z++) vels[z].className='vel';
+      b.className='vel on';
+    };
+  })(vels[q]);
+}
+var sAng=document.getElementById('sAng');
+function scrub(){
+  var vq=parseInt(sAng.value,10);
+  st.ang = Math.floor(st.ang/1440)*1440 + vq;
+  document.getElementById('vAng').textContent=vq+'°';
+  if(st.play){ st.play=false; bPlay.className=''; bPlay.textContent='▶ CONTINUAR'; }
+}
+sAng.oninput=scrub;
+
+var bSpark=document.getElementById('bSpark');
+bSpark.onclick=function(){ st.spark=!st.spark; bSpark.className='roxo'+(st.spark?' on':''); };
+var bBat=document.getElementById('bBat');
+bBat.onclick=function(){ st.bat=!st.bat; bBat.className=st.bat?'on':'warn on';
+  bBat.textContent=st.bat?'BATERIA BOA':'BATERIA FRACA'; };
+var bDesc=document.getElementById('bDesc');
+bDesc.onclick=function(){ st.desc=!st.desc; bDesc.className='amar'+(st.desc?' on':''); };
+
+window.addEventListener('resize', medir);
+montaMotores(); montaCilindros(); medir();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

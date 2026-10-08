@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador — CMP: sensor de fase</title>
+<style>
+  :root{
+    --bg:#0d131b; --panel:#18222f; --panel2:#1e2a39; --line:#2a3a4d;
+    --fg:#e9eff6; --mut:#92a2b6; --acc:#00b0ff; --fuel:#ffa528;
+    --grn:#42d88c; --yel:#ffd640; --red:#ff5656;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+  header{padding:18px 26px 14px;border-bottom:3px solid var(--acc);background:var(--panel)}
+  h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header p{margin:6px 0 0;color:var(--mut);font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px}
+  canvas{width:100%;height:auto;display:block;border-radius:12px;background:#0b111a}
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+            gap:14px;margin-top:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card h3{margin:0 0 4px;font-size:13px;letter-spacing:1.2px;color:var(--mut);
+           text-transform:uppercase}
+  .val{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;margin:14px 0 8px;accent-color:var(--acc);height:38px;
+                    -webkit-appearance:none;background:transparent;touch-action:none}
+  input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;
+    background:linear-gradient(#2c3a4c,#22303f)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;
+    border-radius:50%;background:var(--acc);border:3px solid #0d131b;margin-top:-11px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:#2c3a4c}
+  input[type=range]::-moz-range-thumb{width:30px;height:30px;border:3px solid #0d131b;
+    border-radius:50%;background:var(--acc)}
+  .presets{display:flex;gap:8px;flex-wrap:wrap}
+  .playbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);
+           border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .playbar .scrub{flex:1 1 220px;min-width:180px}
+  .playbar input[type=range]{margin:0}
+  button.big{font-size:17px;padding:14px 22px;min-height:56px;min-width:150px}
+  .tlab{font:700 17px ui-monospace,Consolas,monospace;color:var(--acc);min-width:150px;
+        text-align:right}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+         border-radius:10px;padding:12px 16px;font-size:15px;cursor:pointer;font-weight:600;
+         min-height:46px;touch-action:manipulation}
+  button:hover{border-color:var(--acc)}
+  button.on{background:#003b5c;border-color:var(--acc);color:#bfe9ff}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .hint{color:var(--mut);font-size:12px;margin-top:8px;line-height:1.45}
+  footer{color:#5a6472;font-size:12px;padding:6px 26px 26px;text-align:center}
+  #semjs{background:#3a2a0c;border:2px solid var(--fuel);color:#ffd9a0;border-radius:12px;
+         padding:22px;font-size:16px;line-height:1.6;margin-bottom:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>CMP — o sensor que diz em qual volta o motor está</h1>
+  <p>O CKP mostra a posição dentro de uma volta. Só que o ciclo do motor 4 tempos tem duas voltas — e é o CMP que separa uma da outra.</p>
+</header>
+
+<div class="wrap">
+  <div class="playbar">
+    <button id="bPlay" class="big on">PAUSAR</button>
+    <button id="bRst" class="big">&#9198;&nbsp; REINICIAR</button>
+    <div class="scrub"><input type="range" id="sTime" min="0" max="1000" step="1" value="0"></div>
+    <span id="tLab" class="tlab">0°</span>
+  </div>
+  <div id="semjs">
+    <b>Esta página não está rodando.</b><br>
+    Você abriu o arquivo por um visualizador que bloqueia animações.<br><br>
+    <b>Abra assim:</b> salve em <i>Downloads</i> &rarr; abra o <b>Chrome</b> &rarr;
+    menu <b>⋮</b> &rarr; <b>Downloads</b> &rarr; toque no arquivo.
+  </div>
+  <canvas id="cv" width="1200" height="600"></canvas>
+
+  <div class="controls">
+    <div class="card">
+      <h3>Motor</h3>
+      <div class="row"><span class="val" id="vMot">2 CILINDROS</span><span class="hint" id="motTag"></span></div>
+      <div class="presets" style="margin-top:12px">
+        <button class="mt" data-m="1">1 cilindro</button>
+        <button class="mt on" data-m="2">2 cilindros</button>
+        <button class="mt" data-m="4">4 cilindros</button>
+      </div>
+      <div class="hint">Em monocilíndrica, muita moto sai de fábrica <b>sem CMP</b>: com um cilindro só,
+        injetar e faiscar duas vezes por ciclo custa pouco e sai mais barato que o sensor.</div>
+    </div>
+
+    <div class="card">
+      <h3>Sinal do CMP</h3>
+      <div class="row"><span class="val" id="vDef">BOM</span><span class="hint" id="defTag"></span></div>
+      <div class="presets" style="margin-top:12px">
+        <button class="df on" data-d="bom">Sinal bom</button>
+        <button class="df" data-d="sem">Sem sinal</button>
+        <button class="df" data-d="interm">Intermitente</button>
+        <button class="df" data-d="fora">Fora de fase</button>
+      </div>
+      <div class="hint">Hall entrega onda quadrada: alimentação, massa e sinal. Falha típica é
+        chicote rompido, conector com verdete ou a roda de fase com folga na correia/corrente.</div>
+    </div>
+
+    <div class="card">
+      <h3>Rotação</h3>
+      <div class="row"><span class="val" id="vRpm">1200 rpm</span><span class="hint">giro do virabrequim</span></div>
+      <input type="range" id="sRpm" min="200" max="6000" step="50" value="1200">
+      <div class="presets">
+        <button data-r="250">Partida 250</button>
+        <button data-r="1200">Lenta 1200</button>
+        <button data-r="4000">4000 rpm</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Roda fônica do CKP</h3>
+      <div class="row"><span class="val" id="vRoda">24 − 1</span><span class="hint">dentes − falha</span></div>
+      <div class="presets" style="margin-top:12px">
+        <button class="rd on" data-k="24">24 − 1</button>
+        <button class="rd" data-k="36">36 − 2</button>
+        <button class="rd" data-k="12">12 − 1</button>
+      </div>
+      <div class="presets" style="margin-top:10px">
+        <button id="bReset">Voltar ao padrão</button>
+      </div>
+      <div class="hint">A falha da roda dá a referência de posição a cada volta — mas ela se repete
+        igual nas duas voltas do ciclo. Sozinha, não diz qual é a de compressão.</div>
+    </div>
+  </div>
+</div>
+<footer>HP Instrutor · Injeção Eletrônica — ciclo 4 tempos: 720° de virabrequim = 360° de comando = 1 pulso de fase</footer>
+
+<script>
+(function(){
+  const cv=document.getElementById('cv'), g=cv.getContext('2d');
+  const C={bg:'#0b111a',panel:'#18222f',panel2:'#1e2a39',line:'#2a3a4d',fg:'#e9eff6',
+           mut:'#92a2b6',acc:'#00b0ff',fuel:'#ffa528',grn:'#42d88c',yel:'#ffd640',red:'#ff5656',
+           roxo:'#a68cff'};
+
+  const st={cil:2, def:'bom', rpm:1200, dentes:24, play:true, ang:0};
+
+  /* ---------- modelo ----------
+     ang = angulo de virabrequim dentro do ciclo completo (0..720)          */
+  function temFase(){
+    if(st.def==='sem') return false;
+    if(st.def==='interm') return (Math.floor(st.ang/720)%2)===0;  /* some a cada 2 ciclos */
+    return true;
+  }
+  function faseDeslocada(){ return st.def==='fora' ? 130 : 0; }   /* graus de erro */
+
+  function modelo(){
+    const fase = temFase();
+    const mono = st.cil===1;
+    /* uma moto de 1 cilindro roda de propósito sem fase; nas outras, perder o CMP degrada */
+    const sequencial = fase && !mono;
+    const centelhaIndiv = fase && !mono;
+    /* tempo de sincronismo na partida: com fase a ECU acha o ciclo em 1 volta;
+       sem fase ela parte em modo simultaneo (nao precisa achar) mas perde precisao */
+    const voltasSync = fase ? 1 : (mono ? 1 : 2);
+    const pulsoCmpEm = 100 + faseDeslocada();     /* onde cai o pulso dentro do ciclo */
+    const foraDeFase = st.def==='fora';
+    return {fase, mono, sequencial, centelhaIndiv, voltasSync, pulsoCmpEm, foraDeFase,
+            injecao: sequencial?'SEQUENCIAL':'SIMULTÂNEA',
+            ignicao: centelhaIndiv?'INDIVIDUAL':'CENTELHA PERDIDA'};
+  }
+
+  /* ---------- helpers ---------- */
+  function rr(x,y,w,h,r,fill,stroke,lw){
+    g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r);
+    g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+    if(fill){g.fillStyle=fill; g.fill();}
+    if(stroke){g.strokeStyle=stroke; g.lineWidth=lw||2; g.stroke();}
+  }
+  function txt(s,x,y,size,color,align,bold,mono){
+    g.font=(bold?'700 ':'')+size+'px '+(mono?'ui-monospace,Consolas,monospace':'Segoe UI,Arial,sans-serif');
+    g.fillStyle=color; g.textAlign=align||'left'; g.textBaseline='top'; g.fillText(s,x,y);
+  }
+
+  /* ---------- osciloscópio: CKP em cima, CMP embaixo ---------- */
+  function drawScope(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('AS DUAS ONDAS AO LONGO DE UM CICLO COMPLETO (720°)',x0+14,y0+12,13,C.mut,'left',true);
+    const gx=x0+50, gw=w-70, y1=y0+56, hh=64, y2=y1+112;
+    const X=a=>gx+gw*(a/720);
+
+    /* fundo das duas voltas */
+    rr(gx,y1-8,gw/2,y2-y1+hh+22,6,'#101a24');
+    txt('1ª VOLTA',gx+gw/4,y0+34,11,C.mut,'center',true);
+    txt('2ª VOLTA',gx+gw*0.75,y0+34,11,C.mut,'center',true);
+    g.setLineDash([4,4]);
+    g.beginPath(); g.moveTo(X(360),y1-10); g.lineTo(X(360),y2+hh+14);
+    g.strokeStyle='#33465c'; g.lineWidth=1.5; g.stroke(); g.setLineDash([]);
+
+    /* --- CKP: dentes com a falha --- */
+    txt('CKP',x0+14,y1+18,12,C.acc,'left',true);
+    const N=st.dentes, falta=(st.dentes===36?2:1), passo=360/N;
+    g.beginPath();
+    let primeiro=true;
+    for(let volta=0; volta<2; volta++){
+      for(let i=0;i<N;i++){
+        const base=volta*360+i*passo;
+        const eFalha = i>=N-falta;
+        const alto = eFalha?0:1;
+        const xa=X(base), xb=X(base+passo*0.5), xc=X(base+passo);
+        if(primeiro){ g.moveTo(xa,y1+hh); primeiro=false; }
+        if(alto){ g.lineTo(xa,y1); g.lineTo(xb,y1); g.lineTo(xb,y1+hh); g.lineTo(xc,y1+hh); }
+        else    { g.lineTo(xc,y1+hh); }
+      }
+    }
+    g.strokeStyle=C.acc; g.lineWidth=2; g.stroke();
+    /* marcar as duas falhas — iguais! */
+    for(const volta of [0,1]){
+      const xf=X(volta*360+360-falta*passo);
+      rr(xf-2,y1-6,X(360)-X(360-falta*passo)+4,hh+12,4,'rgba(255,214,64,.10)','#7a6a2a',1);
+      txt('falha',xf+10,y1-22,11,C.yel,'left',true);
+    }
+
+    /* --- CMP: um pulso por ciclo --- */
+    txt('CMP',x0+14,y2+18,12,C.roxo,'left',true);
+    if(m.fase){
+      const a0=m.pulsoCmpEm, a1=a0+150;
+      g.beginPath();
+      g.moveTo(X(0),y2+hh); g.lineTo(X(a0),y2+hh); g.lineTo(X(a0),y2);
+      g.lineTo(X(a1),y2); g.lineTo(X(a1),y2+hh); g.lineTo(X(720),y2+hh);
+      g.strokeStyle=C.roxo; g.lineWidth=2.5; g.stroke();
+      txt('1 pulso a cada 720°',X(a1)+10,y2+4,11,C.roxo,'left',true);
+    } else {
+      g.beginPath(); g.moveTo(X(0),y2+hh); g.lineTo(X(720),y2+hh);
+      g.strokeStyle=C.red; g.lineWidth=2.5; g.stroke();
+      txt('sem pulso — a central não sabe qual volta é qual',X(20),y2+4,12,C.red,'left',true);
+    }
+
+    /* cursor do ângulo atual */
+    const xc2=X(st.ang);
+    g.beginPath(); g.moveTo(xc2,y1-14); g.lineTo(xc2,y2+hh+10);
+    g.strokeStyle=C.fuel; g.lineWidth=2; g.stroke();
+
+    /* escala */
+    for(const a of [0,180,360,540,720]){
+      txt(a+'°',X(a),y2+hh+14,11,C.mut,'center',false,true);
+    }
+  }
+
+  /* ---------- o ciclo e o cilindro 1 ---------- */
+  function drawCiclo(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('O QUE O CILINDRO 1 ESTÁ FAZENDO',x0+14,y0+12,13,C.mut,'left',true);
+    const tempos=[['ADMISSÃO',0,180,'#2b6cb0'],['COMPRESSÃO',180,360,'#b7791f'],
+                  ['EXPANSÃO',360,540,'#c53030'],['ESCAPE',540,720,'#2f855a']];
+    const bx=x0+16, bw=w-32, by=y0+44, bh=40;
+    tempos.forEach(t=>{
+      const xa=bx+bw*(t[1]/720), xb=bx+bw*(t[2]/720);
+      rr(xa,by,xb-xa-2,bh,5,t[3]);
+      txt(t[0],(xa+xb)/2,by+13,11,'#fff','center',true);
+    });
+    const xc=bx+bw*(st.ang/720);
+    g.beginPath(); g.moveTo(xc,by-8); g.lineTo(xc,by+bh+8);
+    g.strokeStyle=C.fuel; g.lineWidth=3; g.stroke();
+
+    const idx = Math.floor(st.ang/180);
+    const agora = tempos[Math.min(3,idx)][0];
+    txt('agora: '+agora, bx, by+bh+16, 15, C.fuel,'left',true);
+
+    /* os dois PMS que o CKP nao distingue */
+    txt('Os dois PMS são idênticos para o CKP:', bx, by+bh+46, 12, '#c3cede');
+    txt('360° = PMS de COMPRESSÃO   ·   0°/720° = PMS de ESCAPE',
+        bx, by+bh+64, 12, m.fase?C.grn:C.red, 'left', true);
+  }
+
+  /* ---------- decisões da central ---------- */
+  function drawDecisao(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('O QUE A CENTRAL FAZ',x0+14,y0+12,13,C.mut,'left',true);
+    let y=y0+44;
+    const linhas=[
+      ['Injeção', m.injecao, m.sequencial?C.grn:C.yel],
+      ['Ignição', m.ignicao, m.centelhaIndiv?C.grn:C.yel],
+      ['Voltas para sincronizar', m.voltasSync+(m.voltasSync>1?' voltas':' volta'),
+        m.voltasSync<=1?C.grn:C.yel]
+    ];
+    linhas.forEach(l=>{
+      txt(l[0],x0+16,y+4,13,'#c3cede');
+      txt(l[1],x0+w-16,y,15,l[2],'right',true,true);
+      y+=34;
+    });
+  }
+
+  /* ---------- leituras ---------- */
+  function drawLeituras(m,x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('SINAL DE FASE',x0+16,y0+14,13,C.mut,'left',true);
+    const ok=m.fase && !m.foraDeFase;
+    txt(m.fase?(m.foraDeFase?'PRESENTE, FORA DE FASE':'PRESENTE E NO LUGAR'):'AUSENTE',
+        x0+16,y0+38,17,ok?C.grn:(m.fase?C.yel:C.red),'left',true);
+
+    let y=y0+82;
+    const rows=[
+      ['Cilindros', st.cil+'', C.fg],
+      ['Rotação', st.rpm+' rpm', C.fg],
+      ['Roda fônica', st.dentes+' − '+(st.dentes===36?2:1), C.fg],
+      ['Ciclo completo', '720°', C.fg],
+      ['Volta do comando', '360°', C.fg],
+      ['Pulso de fase', m.fase?'1 por ciclo':'nenhum', m.fase?C.grn:C.red]
+    ];
+    rows.forEach(r=>{
+      txt(r[0],x0+16,y+4,13,'#c3cede');
+      txt(r[1],x0+w-16,y,14,r[2],'right',true,true);
+      y+=30;
+    });
+
+    y+=10;
+    g.strokeStyle=C.line; g.lineWidth=1;
+    g.beginPath(); g.moveTo(x0+16,y); g.lineTo(x0+w-16,y); g.stroke();
+    txt('COMO CONFERIR NA OFICINA',x0+16,y+12,12,C.mut,'left',true);
+    const dicas = !m.fase
+      ? ['Ponta no fio de sinal com o motor girando:','onda quadrada indo de 0 a 5 V,','1 pulso a cada 2 voltas do virabrequim.',
+         'Sem pulso: confira alimentação e massa','antes de condenar o sensor.']
+      : (m.foraDeFase
+        ? ['O pulso existe mas cai no lugar errado.','Antes de trocar o sensor, confira a','sincronização da correia/corrente e a','folga da roda de fase no comando.']
+        : ['Pulso presente e no lugar certo.','Compare CKP e CMP no mesmo osciloscópio:','a falha da roda tem que cair sempre no','mesmo ponto em relação ao pulso de fase.']);
+    let yd=y+34;
+    dicas.forEach(d=>{ txt(d,x0+16,yd,12,C.mut); yd+=17; });
+  }
+
+  /* ---------- veredicto ---------- */
+  function drawVeredicto(m,x0,y0,w,h){
+    let cor,tit,desc;
+    if(m.mono && !m.fase){
+      cor=C.grn; tit='MONOCILÍNDRICA SEM FASE — ISSO É PROJETO, NÃO DEFEITO';
+      desc='Com um cilindro só, a central injeta e faísca duas vezes por ciclo e aceita o desperdício. Não procure CMP nesta moto: ela nunca teve.';
+    } else if(m.foraDeFase){
+      cor=C.yel; tit='PULSO PRESENTE, MAS NO ÂNGULO ERRADO';
+      desc='O sensor está vivo — quem escorregou foi a referência mecânica. Corrente ou correia fora do ponto, ou roda de fase com folga. Trocar o sensor não resolve.';
+    } else if(!m.fase){
+      cor=C.red; tit='SEM FASE — A CENTRAL PERDEU A REFERÊNCIA DE CICLO';
+      desc='Ela continua rodando pelo CKP, mas cai para injeção simultânea e centelha perdida: gasta mais combustível, parte mais devagar e perde precisão. O motor anda — pior, mas anda.';
+    } else {
+      cor=C.grn; tit='FASE OK — INJEÇÃO SEQUENCIAL E CENTELHA INDIVIDUAL';
+      desc='CKP dá a posição dentro da volta, CMP diz qual das duas voltas é. Com os dois, cada cilindro recebe o combustível e a centelha no momento exato.';
+    }
+    rr(x0,y0,w,h,12,'#101922',cor,2);
+    g.beginPath(); g.arc(x0+26,y0+h/2,8,0,6.2832); g.fillStyle=cor; g.fill();
+    txt(tit,x0+46,y0+16,17,cor,'left',true);
+    txt(desc,x0+46,y0+44,13,'#c3cede');
+  }
+
+  /* ---------- loop ---------- */
+  function frame(){
+    const m=modelo();
+    if(st.play){ st.ang += st.rpm*0.06; }
+    if(st.ang>=1440) st.ang-=1440;              /* 2 ciclos, para o intermitente */
+    const angCiclo = st.ang%720;
+    const salvo=st.ang; st.ang=angCiclo;
+
+    const aviso=document.getElementById('semjs');
+    if(aviso) aviso.style.display='none';
+    g.fillStyle=C.bg; g.fillRect(0,0,cv.width,cv.height);
+    drawScope(m,16,16,800,300);
+    drawCiclo(m,16,332,470,166);
+    drawDecisao(m,502,332,314,166);
+    drawLeituras(m,832,16,352,482);
+    drawVeredicto(m,16,514,1168,70);
+    if(!st.play){ g.strokeStyle=C.yel; g.lineWidth=6; g.strokeRect(3,3,cv.width-6,cv.height-6); }
+
+    st.ang=salvo;
+    const sl=document.getElementById('sTime');
+    if(st.play && document.activeElement!==sl) sl.value=Math.round(angCiclo/720*1000);
+    document.getElementById('tLab').textContent=Math.round(angCiclo)+'°';
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- controles ---------- */
+  const sRpm=document.getElementById('sRpm');
+  function tag(el,t,c){ el.textContent=t; el.style.color=c; }
+  function sync(){
+    st.rpm=+sRpm.value;
+    document.getElementById('vRpm').textContent=st.rpm+' rpm';
+    document.getElementById('vMot').textContent=st.cil+(st.cil>1?' CILINDROS':' CILINDRO');
+    document.getElementById('vRoda').textContent=st.dentes+' − '+(st.dentes===36?2:1);
+    const nomes={bom:'BOM',sem:'SEM SINAL',interm:'INTERMITENTE',fora:'FORA DE FASE'};
+    document.getElementById('vDef').textContent=nomes[st.def];
+    tag(document.getElementById('defTag'),
+      st.def==='bom'?'onda quadrada normal':(st.def==='sem'?'linha morta':
+      (st.def==='interm'?'some e volta':'pulso no ângulo errado')),
+      st.def==='bom'?'#42d88c':(st.def==='fora'?'#ffd640':'#ff5656'));
+    tag(document.getElementById('motTag'),
+      st.cil===1?'muitas não usam CMP':'precisa de fase para ser sequencial',
+      st.cil===1?'#ffd640':'#92a2b6');
+    document.querySelectorAll('.mt').forEach(b=>b.classList.toggle('on',+b.dataset.m===st.cil));
+    document.querySelectorAll('.df').forEach(b=>b.classList.toggle('on',b.dataset.d===st.def));
+    document.querySelectorAll('.rd').forEach(b=>b.classList.toggle('on',+b.dataset.k===st.dentes));
+  }
+  sRpm.addEventListener('input',sync);
+  document.querySelectorAll('.mt').forEach(b=>b.onclick=()=>{st.cil=+b.dataset.m; sync();});
+  document.querySelectorAll('.df').forEach(b=>b.onclick=()=>{st.def=b.dataset.d; sync();});
+  document.querySelectorAll('.rd').forEach(b=>b.onclick=()=>{st.dentes=+b.dataset.k; sync();});
+  document.querySelectorAll('button[data-r]').forEach(b=>
+    b.onclick=()=>{ sRpm.value=b.dataset.r; sync(); });
+
+  const bp=document.getElementById('bPlay');
+  function setPlay(v){ st.play=v; bp.textContent=v?'PAUSAR':'▶  RODAR'; bp.classList.toggle('on',v); }
+  bp.onclick=()=>setPlay(!st.play);
+  document.getElementById('bRst').onclick=()=>{ st.ang=0; setPlay(true); };
+  cv.addEventListener('click',()=>setPlay(!st.play));
+  document.getElementById('sTime').addEventListener('input',function(){
+    setPlay(false); st.ang=(+this.value/1000)*720;
+  });
+  document.getElementById('bReset').onclick=()=>{
+    st.cil=2; st.def='bom'; st.dentes=24; sRpm.value=1200; st.ang=0; sync(); setPlay(true);
+  };
+
+  window.__cmp=function(o){
+    o=o||{};
+    if(o.cil!==undefined) st.cil=o.cil;
+    if(o.def!==undefined) st.def=o.def;
+    if(o.rpm!==undefined) sRpm.value=o.rpm;
+    if(o.dentes!==undefined) st.dentes=o.dentes;
+    if(o.ang!==undefined) st.ang=o.ang;
+    sync();
+    const m=modelo();
+    return {fase:m.fase, injecao:m.injecao, ignicao:m.ignicao, sequencial:m.sequencial,
+            voltasSync:m.voltasSync, foraDeFase:m.foraDeFase, mono:m.mono};
+  };
+
+  sync(); frame();
+})();
+</script>
+</body>
+</html>

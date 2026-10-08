@@ -1,0 +1,16 @@
+{
+  "name": "Injeção Eletrônica de Motos — HP Instrutor",
+  "short_name": "Injeção Moto",
+  "description": "Bancada de simulação de defeitos de injeção eletrônica de motos. HP Instrutor · Moto & School.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0d131b",
+  "theme_color": "#0d131b",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-512.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" }
+  ]
+}

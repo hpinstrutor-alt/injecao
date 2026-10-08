@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador — Bico Injetor: tensão e resistência</title>
+<style>
+  :root{
+    --bg:#0d131b; --panel:#18222f; --panel2:#1e2a39; --line:#2a3a4d;
+    --fg:#e9eff6; --mut:#92a2b6; --acc:#00b0ff; --fuel:#ffa528;
+    --grn:#42d88c; --yel:#ffd640; --red:#ff5656;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+  header{padding:18px 26px 14px;border-bottom:3px solid var(--acc);background:var(--panel)}
+  h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header p{margin:6px 0 0;color:var(--mut);font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px}
+  canvas{width:100%;height:auto;display:block;border-radius:12px;background:#0b111a}
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+            gap:14px;margin-top:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card h3{margin:0 0 4px;font-size:13px;letter-spacing:1.2px;color:var(--mut);
+           text-transform:uppercase}
+  .val{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;margin:14px 0 8px;accent-color:var(--acc);height:38px;
+                    -webkit-appearance:none;background:transparent;touch-action:none}
+  input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;
+    background:linear-gradient(#2c3a4c,#22303f)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;
+    border-radius:50%;background:var(--acc);border:3px solid #0d131b;margin-top:-11px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:#2c3a4c}
+  input[type=range]::-moz-range-thumb{width:30px;height:30px;border:3px solid #0d131b;
+    border-radius:50%;background:var(--acc)}
+  .presets{display:flex;gap:8px;flex-wrap:wrap}
+  .playbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);
+           border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .playbar .scrub{flex:1 1 220px;min-width:180px}
+  .playbar input[type=range]{margin:0}
+  button.big{font-size:17px;padding:14px 22px;min-height:56px;min-width:150px}
+  .tlab{font:700 17px ui-monospace,Consolas,monospace;color:var(--acc);min-width:130px;
+        text-align:right}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+         border-radius:10px;padding:12px 16px;font-size:15px;cursor:pointer;font-weight:600;
+         min-height:46px;touch-action:manipulation}
+  button:hover{border-color:var(--acc)}
+  button.on{background:#003b5c;border-color:var(--acc);color:#bfe9ff}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .hint{color:var(--mut);font-size:12px;margin-top:8px;line-height:1.45}
+  label.chk{display:flex;align-items:center;gap:12px;font-size:15px;cursor:pointer;
+            margin-top:10px;padding:8px 0;min-height:46px}
+  input[type=checkbox]{width:26px;height:26px;accent-color:var(--acc)}
+  footer{color:#5a6472;font-size:12px;padding:6px 26px 26px;text-align:center}
+  #semjs{background:#3a2a0c;border:2px solid var(--fuel);color:#ffd9a0;border-radius:12px;
+         padding:22px;font-size:16px;line-height:1.6;margin-bottom:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Simulador do bico injetor — tensão de alimentação x resistência</h1>
+  <p>Mexa nos controles e veja o efeito na corrente da bobina, no atraso de abertura e na vazão entregue.</p>
+</header>
+
+<div class="wrap">
+  <div class="playbar">
+    <button id="bPlay" class="big on">PAUSAR</button>
+    <button id="bRst" class="big">&#9198;&nbsp; REINICIAR</button>
+    <div class="scrub">
+      <input type="range" id="sTime" min="0" max="1000" step="1" value="0">
+    </div>
+    <span id="tLab" class="tlab">t = 0,00 ms</span>
+  </div>
+  <div id="semjs">
+    <b>Esta página não está rodando.</b><br>
+    Você abriu o arquivo por um visualizador que bloqueia animações.<br><br>
+    <b>Abra assim:</b> salve o arquivo em <i>Downloads</i> &rarr; abra o <b>Chrome</b> &rarr;
+    menu <b>⋮</b> &rarr; <b>Downloads</b> &rarr; toque em <b>simulador_bico.html</b>.
+  </div>
+  <canvas id="cv" width="1200" height="560"></canvas>
+
+  <div class="controls">
+    <div class="card">
+      <h3>Tensão que chega no bico</h3>
+      <div class="row"><span class="val" id="vV">13.8 V</span><span class="hint" id="vTag"></span></div>
+      <input type="range" id="sV" min="6" max="15" step="0.1" value="13.8">
+      <div class="presets">
+        <button data-v="13.8">Alimentação boa 13,8 V</button>
+        <button data-v="11.5">Fraca 11,5 V</button>
+        <button data-v="9.5">Ruim 9,5 V</button>
+      </div>
+      <div class="hint">Simula queda no chicote, relé com contato sujo, massa ruim ou bateria descarregada.</div>
+    </div>
+
+    <div class="card">
+      <h3>Resistência do bico</h3>
+      <div class="row"><span class="val" id="vR">14 Ω</span><span class="hint" id="rTag"></span></div>
+      <input type="range" id="sR" min="8" max="32" step="0.5" value="14">
+      <div class="presets">
+        <button data-r="14">Bico bom 14 Ω</button>
+        <button data-r="22">Resistência alta 22 Ω</button>
+        <button data-r="30">Muito alta 30 Ω</button>
+      </div>
+      <div class="hint">Bicos de alta impedância trabalham entre 12 e 16 Ω. Acima disso: bobina em curto parcial, oxidação ou emenda ruim.</div>
+    </div>
+
+    <div class="card">
+      <h3>Tempo de injeção comandado</h3>
+      <div class="row"><span class="val" id="vT">3.5 ms</span><span class="hint">pulso da ECU</span></div>
+      <input type="range" id="sT" min="1" max="12" step="0.1" value="3.5">
+      <label class="chk"><input type="checkbox" id="cCorr" checked>
+        Correção de tensão da ECU (compensa o tempo morto)</label>
+      <div class="presets" style="margin-top:10px">
+        <button id="bReset">Voltar ao padrão</button>
+      </div>
+    </div>
+  </div>
+</div>
+<footer>HP Instrutor · Injeção Eletrônica — modelo didático: i(t) = (V/R)·(1 − e<sup>−t·R/L</sup>), L = 14 mH</footer>
+
+<script>
+(function(){
+  const cv = document.getElementById('cv'), g = cv.getContext('2d');
+  const L_H = 0.014, I_TH = 0.55, T_CLOSE = 0.5, CMD_ON = 1.0;
+  const V_NOM = 13.8, R_NOM = 14.0;
+
+  const st = {V:13.8, R:14, TI:3.5, corr:true, play:true, t:0, TMAX:8};
+
+  function tOpen(V,R){
+    const tau = L_H/R*1000, ifin = V/R;
+    if(ifin <= I_TH*1.02) return null;
+    return -tau*Math.log(1 - I_TH/ifin);
+  }
+  function model(V,R,TI,corr){
+    const tau = L_H/R*1000, ifin = V/R;
+    let ti = TI;
+    if(corr){
+      const a = tOpen(V,R_NOM), b = tOpen(V_NOM,R_NOM);
+      if(a!==null) ti = TI + (a-b);            // ECU corrige pela TENSÃO, não pela resistência
+    }
+    const cmdOff = CMD_ON + ti;
+    const to = tOpen(V,R);
+    let ostart=null, oend=null, tef=0;
+    if(to!==null && CMD_ON+to < cmdOff){
+      ostart = CMD_ON+to; oend = cmdOff+T_CLOSE; tef = oend-ostart;
+    }
+    return {tau, ifin, to, ti, cmdOff, ostart, oend, tef};
+  }
+  function current(m,t){
+    if(t < CMD_ON) return 0;
+    if(t <= m.cmdOff) return m.ifin*(1-Math.exp(-(t-CMD_ON)/m.tau));
+    const ipk = m.ifin*(1-Math.exp(-(m.cmdOff-CMD_ON)/m.tau));
+    return ipk*Math.exp(-(t-m.cmdOff)/0.22);
+  }
+  function lift(m,t){
+    if(m.ostart===null) return 0;
+    const a=m.ostart, b=m.oend;
+    if(t<=a||t>=b) return 0;
+    if(t<a+0.35) return (t-a)/0.35;
+    if(t>b-0.30) return (b-t)/0.30;
+    return 1;
+  }
+
+  // ---------- helpers de desenho ----------
+  function rr(x,y,w,h,r,fill,stroke,lw){
+    g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r);
+    g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+    if(fill){g.fillStyle=fill; g.fill();}
+    if(stroke){g.strokeStyle=stroke; g.lineWidth=lw||2; g.stroke();}
+  }
+  function txt(s,x,y,size,color,align,bold,mono){
+    g.font = (bold?'700 ':'') + size + 'px ' + (mono?'ui-monospace,Consolas,monospace':'Segoe UI,Arial,sans-serif');
+    g.fillStyle=color; g.textAlign=align||'left'; g.textBaseline='top'; g.fillText(s,x,y);
+  }
+  const C={bg:'#0b111a',panel:'#18222f',panel2:'#1e2a39',line:'#2a3a4d',fg:'#e9eff6',
+           mut:'#92a2b6',acc:'#00b0ff',fuel:'#ffa528',grn:'#42d88c',yel:'#ffd640',red:'#ff5656',
+           metal:'#9ca8b8',metalL:'#c6d0de'};
+
+  function drawInjector(m,t,x0,y0,w,h){
+    const cx = x0+w/2, i = current(m,t), lf = lift(m,t);
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('BICO INJETOR',x0+14,y0+12,13,C.mut,'left',true);
+    const top=y0+56, bot=y0+h-96;
+    // corpo
+    rr(cx-46,top,92,bot-top,8,'#32404f',C.metal,2);
+    // bobina com brilho pela corrente
+    const f = Math.min(1,i/0.95);
+    const coil = 'rgb('+Math.round(56+0*f)+','+Math.round(70+62*f)+','+Math.round(88+116*f)+')';
+    g.fillStyle=coil; g.fillRect(cx-34,top+26,22,bot-top-88); g.fillRect(cx+12,top+26,22,bot-top-88);
+    g.strokeStyle='#0e1620'; g.lineWidth=2;
+    for(let y=top+32;y<bot-62;y+=9){
+      g.beginPath(); g.moveTo(cx-34,y); g.lineTo(cx-12,y); g.moveTo(cx+12,y); g.lineTo(cx+34,y); g.stroke();
+    }
+    // campo magnetico
+    if(f>0.15){
+      g.strokeStyle='rgba(0,176,255,'+(0.15+0.45*f)+')'; g.lineWidth=2;
+      [50,66,82].forEach(r=>{g.beginPath(); g.arc(cx,(top+bot)/2-20,r,0,6.283); g.stroke();});
+    }
+    // agulha
+    const ny = bot-24-22*lf;
+    g.fillStyle='#bec8d6'; g.fillRect(cx-8,top+24-22*lf,16,ny-(top+24-22*lf));
+    g.fillStyle='#32404f'; g.strokeStyle=C.metal; g.lineWidth=2;
+    g.beginPath(); g.moveTo(cx-46,bot-24); g.lineTo(cx+46,bot-24);
+    g.lineTo(cx+18,bot+34); g.lineTo(cx-18,bot+34); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle='#ced6e4';
+    g.beginPath(); g.moveTo(cx-8,ny-8); g.lineTo(cx+8,ny-8); g.lineTo(cx+8,ny+10);
+    g.lineTo(cx,ny+24); g.lineTo(cx-8,ny+10); g.closePath(); g.fill();
+    // spray
+    if(lf>0.08){
+      g.fillStyle='rgba(255,165,40,'+(0.16*lf+0.05)+')';
+      g.beginPath(); g.moveTo(cx-8,bot+34); g.lineTo(cx+8,bot+34);
+      g.lineTo(cx+18+34*lf,y0+h-12); g.lineTo(cx-18-34*lf,y0+h-12); g.closePath(); g.fill();
+      g.fillStyle=C.fuel;
+      for(let j=0;j<26;j++){
+        const u=((j*0.31 + t*0.35)%1);
+        const px=cx+Math.sin(j*2.9)*(5+u*(14+30*lf)), py=bot+34+u*(y0+h-12-bot-34);
+        g.beginPath(); g.arc(px,py,1.3+u*2*lf,0,6.283); g.fill();
+      }
+    } else {
+      txt(m.ostart===null?'SEM PULVERIZAÇÃO':'fechado',cx,bot+52,13,
+          m.ostart===null?C.red:C.mut,'center',true);
+    }
+    txt('agulha '+(lf*100).toFixed(0)+'%',x0+w-14,y0+12,13,C.mut,'right',true,true);
+  }
+
+  function drawScope(m,t,x0,y0,w,h,TMAX){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('CORRENTE NA BOBINA DO BICO',x0+14,y0+12,13,C.mut,'left',true);
+    txt(current(m,t).toFixed(2)+' A',x0+w-14,y0+10,17,C.grn,'right',true,true);
+    const gx0=x0+52, gx1=x0+w-16, gy0=y0+40, gy1=y0+h-34;
+    const IMAX = Math.max(1.05, m.ifin*1.15);
+    rr(gx0,gy0,gx1-gx0,gy1-gy0,6,'#0a1612','#223c32',2);
+    const X=tt=>gx0+4+(tt/TMAX)*(gx1-gx0-8), Y=a=>gy1-6-(a/IMAX)*(gy1-gy0-12);
+    g.strokeStyle='#18302a'; g.lineWidth=1;
+    for(let i=1;i<10;i++){g.beginPath(); const x=gx0+i*(gx1-gx0)/10; g.moveTo(x,gy0); g.lineTo(x,gy1); g.stroke();}
+    // limiar
+    g.strokeStyle=C.yel; g.lineWidth=2; g.setLineDash([7,7]);
+    g.beginPath(); g.moveTo(gx0+4,Y(I_TH)); g.lineTo(gx1-4,Y(I_TH)); g.stroke(); g.setLineDash([]);
+    txt('limiar de abertura  '+I_TH.toFixed(2)+' A',gx1-8,Y(I_TH)-19,12,C.yel,'right',true);
+    // eixo
+    txt(IMAX.toFixed(1)+' A',gx0-8,gy0,11,C.mut,'right');
+    txt('0',gx0-8,gy1-14,11,C.mut,'right');
+    // curva
+    g.strokeStyle=C.grn; g.lineWidth=3; g.beginPath();
+    for(let tt=0;tt<=TMAX;tt+=0.02){
+      const p=[X(tt),Y(Math.min(IMAX,current(m,tt)))];
+      tt===0?g.moveTo(p[0],p[1]):g.lineTo(p[0],p[1]);
+    }
+    g.stroke();
+    // cursor
+    g.strokeStyle='rgba(255,255,255,.55)'; g.lineWidth=2;
+    g.beginPath(); g.moveTo(X(t),gy0); g.lineTo(X(t),gy1); g.stroke();
+    g.fillStyle=C.fg; g.beginPath(); g.arc(X(t),Y(Math.min(IMAX,current(m,t))),5,0,6.283); g.fill();
+    txt('t = '+t.toFixed(2)+' ms',gx0,gy1+8,12,C.acc,'left',true,true);
+  }
+
+  function drawTimeline(m,x0,y0,w,h,TMAX){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    const tx0=x0+16, tx1=x0+w-92;
+    const X=tt=>tx0+(tt/TMAX)*(tx1-tx0);
+    txt('COMANDO DA ECU',tx0,y0+12,12,C.acc,'left',true);
+    rr(X(CMD_ON),y0+30,Math.max(2,X(m.cmdOff)-X(CMD_ON)),18,4,'#005a8c',C.acc,1);
+    txt(m.ti.toFixed(2)+' ms',x0+w-14,y0+31,13,C.acc,'right',true,true);
+    txt('BICO REALMENTE ABERTO',tx0,y0+60,12,C.fuel,'left',true);
+    if(m.ostart!==null){
+      rr(X(m.ostart),y0+78,Math.max(2,X(m.oend)-X(m.ostart)),18,4,'#965c10',C.fuel,1);
+      txt(m.tef.toFixed(2)+' ms',x0+w-14,y0+79,13,C.fuel,'right',true,true);
+    }else{
+      rr(tx0,y0+78,tx1-tx0,18,4,'#3c1414',C.red,1);
+      txt('NÃO ABRE',(tx0+tx1)/2,y0+80,12,C.red,'center',true);
+      txt('0 ms',x0+w-14,y0+79,13,C.red,'right',true,true);
+    }
+  }
+
+  function drawReadouts(m,x0,y0,w,h,ref){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    const vaz = ref>0 ? 100*m.tef/ref : 0;
+    const rows = [
+      ['Corrente máxima', m.ifin.toFixed(2)+' A', m.ifin>0.8?C.grn:(m.ifin>I_TH?C.yel:C.red)],
+      ['Constante de tempo (L/R)', m.tau.toFixed(2)+' ms', C.fg],
+      ['Atraso para abrir', m.to===null?'não abre':m.to.toFixed(2)+' ms',
+        m.ostart===null?C.red:(m.to<1.0?C.grn:C.yel)],
+      ['Tempo comandado pela ECU', m.ti.toFixed(2)+' ms',
+        m.ti>st.TI+0.005?C.acc:C.fg],
+      ['Tempo real injetando', m.tef.toFixed(2)+' ms',
+        m.tef>0?(vaz>96?C.grn:C.yel):C.red],
+    ];
+    let y=y0+16;
+    rows.forEach(r=>{
+      txt(r[0],x0+16,y+4,13,'#c3cede');
+      txt(r[1],x0+w-16,y,16,r[2],'right',true,true);
+      y+=30;
+    });
+    y+=6;
+    txt('VAZÃO ENTREGUE',x0+16,y+8,13,C.mut,'left',true);
+    const vc = vaz>96?C.grn:(vaz>70?C.yel:C.red);
+    txt(vaz.toFixed(0)+' %',x0+w-16,y,26,vc,'right',true,true);
+    rr(x0+16,y+34,w-32,16,8,'#26303e');
+    if(vaz>1) rr(x0+16,y+34,(w-32)*Math.min(1,vaz/100),16,8,vc);
+    // lambda estimado
+    y+=64;
+    const lam = vaz>1 ? 100/vaz : 99;
+    txt('Lambda estimado',x0+16,y+4,13,'#c3cede');
+    txt(vaz>1?('λ ≈ '+lam.toFixed(2)):'sem queima',x0+w-16,y,16,
+        (lam<1.05?C.grn:(lam<1.2?C.yel:C.red)),'right',true,true);
+
+    // comparação com o padrão
+    y+=46;
+    g.strokeStyle=C.line; g.lineWidth=1;
+    g.beginPath(); g.moveTo(x0+16,y); g.lineTo(x0+w-16,y); g.stroke();
+    txt('COMPARADO AO PADRÃO  13,8 V · 14 Ω',x0+16,y+12,12,C.mut,'left',true);
+    const dt = m.tef-ref;
+    txt('Diferença no tempo injetado',x0+16,y+42,13,'#c3cede');
+    txt((dt>=0?'+':'')+dt.toFixed(2)+' ms',x0+w-16,y+38,16,
+        (Math.abs(dt)<0.1?C.grn:C.red),'right',true,true);
+    txt('Correção de tensão da ECU',x0+16,y+76,13,'#c3cede');
+    txt(st.corr?'ATIVA':'desligada',x0+w-16,y+72,16,st.corr?C.acc:C.mut,'right',true,true);
+    const hint = st.corr
+        ? ['A ECU compensa a tensão baixa,','mas não enxerga resistência alta.']
+        : ['Sem correção, toda queda de tensão','vira perda de combustível.'];
+    txt(hint[0],x0+16,y+104,12,C.mut);
+    txt(hint[1],x0+16,y+120,12,C.mut);
+    return vaz;
+  }
+
+  function drawVerdict(vaz,m,x0,y0,w,h){
+    let tit,desc,col;
+    if(m.ostart===null){
+      col=C.red; tit='O BICO NÃO ABRE';
+      desc='A corrente não chega ao limiar. Cilindro sem combustível: falha, cheiro de gasolina no escape e luz de injeção acesa.';
+    }else if(vaz>96){
+      col=C.grn; tit='FUNCIONAMENTO NORMAL';
+      desc='A agulha abre no tempo certo e entrega a vazão que a ECU calculou.';
+    }else if(vaz>70){
+      col=C.yel; tit='MISTURA POBRE — PERDA DE VAZÃO';
+      desc='O bico abre atrasado. Sintoma: falha em carga, marcha lenta irregular e correção de combustível positiva no scanner.';
+    }else{
+      col=C.red; tit='MISTURA MUITO POBRE';
+      desc='Perda grande de vazão. O motor falha, perde força e a ECU tenta compensar até o limite da correção.';
+    }
+    rr(x0,y0,w,h,12,'rgba(255,255,255,0.03)',col,2);
+    g.fillStyle=col; g.beginPath(); g.arc(x0+30,y0+h/2,11,0,6.283); g.fill();
+    txt(tit,x0+52,y0+14,17,col,'left',true);
+    txt(desc,x0+52,y0+40,13,'#c3cede');
+  }
+
+  function layout(){
+    const estreito = window.innerWidth < 980;
+    const W = estreito?820:1200, H = estreito?1064:560;
+    if(cv.width!==W||cv.height!==H){ cv.width=W; cv.height=H; }
+    return estreito
+      ? {W,H, inj:[16,16,236,432], read:[264,16,540,432], scope:[16,464,788,292],
+         tl:[16,768,788,152], verd:[16,932,788,116]}
+      : {W,H, inj:[16,16,268,428], scope:[300,16,516,268], tl:[300,300,516,144],
+         read:[832,16,352,428], verd:[16,460,1168,84]};
+  }
+  function frame(){
+    const m = model(st.V,st.R,st.TI,st.corr);
+    const mref = model(V_NOM,R_NOM,st.TI,false);
+    const TMAX = Math.max(m.cmdOff,mref.cmdOff)+2.2;
+    if(st.play){ st.t += TMAX/150; if(st.t>TMAX) st.t=0; }
+    if(st.t>TMAX) st.t=0;
+
+    st.TMAX = TMAX;
+    const L = layout();
+    const aviso = document.getElementById('semjs');
+    if(aviso) aviso.style.display='none';
+    g.fillStyle=C.bg; g.fillRect(0,0,L.W,L.H);
+    drawInjector(m,st.t,L.inj[0],L.inj[1],L.inj[2],L.inj[3]);
+    drawScope(m,st.t,L.scope[0],L.scope[1],L.scope[2],L.scope[3],TMAX);
+    drawTimeline(m,L.tl[0],L.tl[1],L.tl[2],L.tl[3],TMAX);
+    const vaz = drawReadouts(m,L.read[0],L.read[1],L.read[2],L.read[3],mref.tef);
+    drawVerdict(vaz,m,L.verd[0],L.verd[1],L.verd[2],L.verd[3]);
+    if(!st.play){                    // moldura amarela = animação parada
+      g.strokeStyle=C.yel; g.lineWidth=6;
+      g.strokeRect(3,3,L.W-6,L.H-6);
+    }
+    const sT2=document.getElementById('sTime'), tl=document.getElementById('tLab');
+    if(st.play) sT2.value = Math.round(st.t/TMAX*1000);
+    tl.textContent = 't = '+st.t.toFixed(2).replace('.',',')+' ms';
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- controles ----------
+  const sV=document.getElementById('sV'), sR=document.getElementById('sR'),
+        sT=document.getElementById('sT'), cC=document.getElementById('cCorr');
+  function tag(el,txt,col){ el.textContent=txt; el.style.color=col; }
+  function sync(){
+    st.V=+sV.value; st.R=+sR.value; st.TI=+sT.value; st.corr=cC.checked;
+    document.getElementById('vV').textContent=st.V.toFixed(1)+' V';
+    document.getElementById('vR').textContent=st.R.toFixed(1)+' Ω';
+    document.getElementById('vT').textContent=st.TI.toFixed(1)+' ms';
+    const vt=document.getElementById('vTag');
+    if(st.V>=12.5) tag(vt,'alimentação saudável','#42d88c');
+    else if(st.V>=10.5) tag(vt,'queda de tensão','#ffd640');
+    else tag(vt,'alimentação ruim','#ff5656');
+    const rt=document.getElementById('rTag');
+    if(st.R<=16 && st.R>=12) tag(rt,'dentro da faixa','#42d88c');
+    else if(st.R<12) tag(rt,'baixa — risco de queimar o driver','#ffd640');
+    else if(st.R<=20) tag(rt,'acima da faixa','#ffd640');
+    else tag(rt,'resistência alta','#ff5656');
+  }
+  [sV,sR,sT].forEach(e=>e.addEventListener('input',sync));
+  cC.addEventListener('change',sync);
+  document.querySelectorAll('button[data-v]').forEach(b=>
+    b.onclick=()=>{sV.value=b.dataset.v; sync();});
+  document.querySelectorAll('button[data-r]').forEach(b=>
+    b.onclick=()=>{sR.value=b.dataset.r; sync();});
+  const bp=document.getElementById('bPlay');
+  function setPlay(v){
+    st.play=v;
+    bp.innerHTML = v ? 'PAUSAR' : '\u25B6&nbsp; RODAR';
+    bp.classList.toggle('on',v);
+  }
+  bp.onclick=()=>setPlay(!st.play);
+  document.getElementById('bRst').onclick=()=>{st.t=0; setPlay(true);};
+  cv.addEventListener('click',()=>setPlay(!st.play));
+  const sTime=document.getElementById('sTime');
+  sTime.addEventListener('input',()=>{ setPlay(false); st.t=(+sTime.value/1000)*(st.TMAX||8); });
+  document.getElementById('bReset').onclick=()=>{
+    sV.value=13.8; sR.value=14; sT.value=3.5; cC.checked=true; st.t=0; sync(); setPlay(true);};
+
+  sync(); frame();
+})();
+</script>
+</body>
+</html>

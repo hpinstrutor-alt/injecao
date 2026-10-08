@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAP — como nasce o vácuo e a pressão no coletor</title>
+<style>
+  :root{--bg:#0d131b;--panel:#18222f;--panel2:#1e2a39;--line:#2a3a4d;--fg:#e9eff6;
+        --mut:#92a2b6;--acc:#00b0ff;--fuel:#ffa528;--grn:#42d88c;--yel:#ffd640;
+        --red:#ff5656;--roxo:#b08cff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+  header{padding:18px 26px 15px;border-bottom:3px solid var(--roxo);background:var(--panel)}
+  h1{margin:0;font-size:22px}
+  header p{margin:6px 0 0;color:var(--mut);font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px}
+  canvas{width:100%;height:auto;display:block;border-radius:12px;background:#0b111a}
+  .barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);
+         border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .barra .scrub{flex:1 1 240px;min-width:200px}
+  .grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+         gap:14px;margin-top:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card h3{margin:0 0 2px;font-size:12px;letter-spacing:1.4px;color:var(--mut);text-transform:uppercase}
+  .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .val{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;margin:12px 0 8px;accent-color:var(--acc);height:38px;
+                    -webkit-appearance:none;background:transparent;touch-action:none}
+  input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;
+    background:linear-gradient(#2c3a4c,#22303f)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;
+    border-radius:50%;background:var(--acc);border:3px solid #0d131b;margin-top:-11px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:#2c3a4c}
+  input[type=range]::-moz-range-thumb{width:30px;height:30px;border:3px solid #0d131b;
+    border-radius:50%;background:var(--acc)}
+  .barra input[type=range]{margin:0}
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+         border-radius:10px;padding:12px 16px;font-size:15px;cursor:pointer;font-weight:600;
+         min-height:48px;touch-action:manipulation}
+  button:hover{border-color:var(--acc)}
+  button.on{background:#003b5c;border-color:var(--acc);color:#bfe9ff}
+  button.big{font-size:17px;padding:14px 20px;min-height:54px;min-width:140px}
+  .glab{font:700 17px ui-monospace,Consolas,monospace;color:var(--roxo);min-width:120px;
+        text-align:right}
+  .nota{color:var(--mut);font-size:12px;margin-top:10px;line-height:1.5}
+  footer{color:#5a6472;font-size:12px;padding:8px 26px 26px;text-align:center}
+  #semjs{background:#3a2a0c;border:2px solid var(--fuel);color:#ffd9a0;border-radius:12px;
+         padding:22px;font-size:16px;line-height:1.6;margin-bottom:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>MAP — como nasce o vácuo e a pressão dentro do coletor</h1>
+  <p>Monocilíndrica: a cada 720° o pistão puxa o coletor para o vácuo e, com a válvula fechada, ele volta a subir em direção à atmosférica.</p>
+</header>
+
+<div class="wrap">
+  <div class="barra">
+    <button id="bPlay" class="big on">PAUSAR</button>
+    <button id="bRst" class="big">&#9198;&nbsp; INÍCIO</button>
+    <div class="scrub"><input type="range" id="sAng" min="0" max="720" step="1" value="0"></div>
+    <span id="angLab" class="glab">0°</span>
+  </div>
+
+  <div id="semjs">
+    <b>Esta página não está rodando.</b><br>
+    Você abriu o arquivo por um visualizador que bloqueia animações.<br><br>
+    <b>Abra assim:</b> salve em <i>Downloads</i> &rarr; abra o <b>Chrome</b> &rarr;
+    menu <b>⋮</b> &rarr; <b>Downloads</b> &rarr; toque no arquivo.
+  </div>
+
+  <canvas id="cv" width="1200" height="700"></canvas>
+
+  <div class="grade">
+    <div class="card">
+      <h3>Abertura da borboleta</h3>
+      <div class="row"><span class="val" id="vT">0 %</span><span id="tTag" style="font-size:14px"></span></div>
+      <input type="range" id="sT" min="0" max="100" step="1" value="0">
+      <div class="btns">
+        <button data-t="0">Fechada</button><button data-t="25">25 %</button>
+        <button data-t="50">50 %</button><button data-t="100">Toda aberta</button>
+      </div>
+      <div class="nota">Fechada, o coletor enche devagar pela fresta e o vácuo fica forte. Aberta, ele enche quase na hora e quase não sobra vácuo.</div>
+    </div>
+
+    <div class="card">
+      <h3>Velocidade da animação</h3>
+      <div class="btns" style="margin-top:10px">
+        <button class="vel" data-v="3">Rápida</button>
+        <button class="vel on" data-v="1">Normal</button>
+        <button class="vel" data-v="0.35">Bem devagar</button>
+      </div>
+      <div class="nota">Use a barra de cima para parar em qualquer grau do ciclo e mostrar o que está acontecendo naquele instante.</div>
+    </div>
+  </div>
+</div>
+<footer>HP Instrutor · Injeção Eletrônica — MAP mede pressão ABSOLUTA · vácuo = atmosférica − MAP</footer>
+
+<script>
+(function(){
+  var cv=document.getElementById('cv'), g=cv.getContext('2d');
+  var st={T:0,N:1400,ang:0,play:true,vel:1};
+  var C={panel:'#18222f',line:'#2a3a4d',fg:'#e9eff6',mut:'#92a2b6',acc:'#00b0ff',
+         fuel:'#ffa528',grn:'#42d88c',yel:'#ffd640',red:'#ff5656',roxo:'#b08cff',
+         metal:'#9ca8b8',metalL:'#c6d0de',ar:'#60c8ff'};
+  var rad=function(d){return d*Math.PI/180;};
+  var BARO=101.3;
+  var ABRE=700, FECHA=240;                       // válvula de admissão (graus)
+
+  function aberta(a){ a=((a%720)+720)%720; return a>=ABRE || a<=FECHA; }
+  function liftAdm(a){
+    a=((a%720)+720)%720;
+    if(!aberta(a)) return 0;
+    var p=(a>=ABRE)? (a-ABRE) : (a+720-ABRE);
+    return Math.sin(Math.PI*p/(FECHA+720-ABRE));
+  }
+  function liftEsc(a){
+    a=((a%720)+720)%720;
+    var ini=490, dur=250, p=(a-ini+720)%720;
+    return p<=dur? Math.sin(Math.PI*p/dur):0;
+  }
+  // ---- ciclo de pressão: integra grau a grau ----
+  var cache={t:-1,n:-1,arr:null,med:0,min:0,max:0};
+  function ciclo(){
+    var tk=Math.round(st.T), nk=Math.round(st.N/100);
+    if(cache.t===tk && cache.n===nk) return cache;
+    var pPuxa=BARO*(0.10+0.90*Math.pow(st.T/100,0.8));   // até onde o pistão puxaria
+    var tauPuxa=42;                                       // graus
+    var tauEncheMs=3+45*Math.pow(1-st.T/100,1.6);
+    var tauEnche=Math.max(8,tauEncheMs*st.N/166.7);       // graus
+    var P=new Array(721), p=BARO*0.5;
+    for(var passe=0;passe<3;passe++){
+      for(var a=0;a<=720;a++){
+        if(aberta(a)) p+=(pPuxa-p)/tauPuxa;
+        else          p+=(BARO-p)/tauEnche;
+        if(passe===2) P[a]=p;
+      }
+    }
+    var sm=0,mn=999,mx=0;
+    for(var i=0;i<720;i++){sm+=P[i];if(P[i]<mn)mn=P[i];if(P[i]>mx)mx=P[i];}
+    cache={t:tk,n:nk,arr:P,med:sm/720,min:mn,max:mx};
+    return cache;
+  }
+  function pressao(a){ var c=ciclo(); return c.arr[Math.round(((a%720)+720)%720)]; }
+  function volts(k){ return 0.25+k/BARO*4.35; }
+
+  function rr(x,y,w,h,r,fill,stroke,lw){
+    g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);
+    g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();
+    if(fill){g.fillStyle=fill;g.fill();}
+    if(stroke){g.strokeStyle=stroke;g.lineWidth=lw||2;g.stroke();}
+  }
+  function txt(s,x,y,size,color,align,bold,mono){
+    g.font=(bold?'700 ':'')+size+'px '+(mono?'ui-monospace,Consolas,monospace':'Segoe UI,Arial,sans-serif');
+    g.fillStyle=color;g.textAlign=align||'left';g.textBaseline='top';g.fillText(s,x,y);
+  }
+  function corPressao(p){
+    var u=Math.max(0,Math.min(1,p/BARO));                 // 0 vácuo · 1 atmosfera
+    return 'rgb('+Math.round(28+70*u)+','+Math.round(22+90*u)+','+Math.round(52+70*u)+')';
+  }
+
+  // ---------------- motor em corte ----------------
+  // desenhado num espaço virtual de 600 x 420 e encaixado no painel
+  function motor(x0,y0,w,h){
+    var a=st.ang, p=pressao(a), la=liftAdm(a), le=liftEsc(a);
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    var k=Math.min(w/600,h/420);
+    g.save();
+    g.translate(x0+(w-600*k)/2, y0+(h-420*k)/2);
+    g.scale(k,k);
+
+    txt('O QUE ACONTECE DENTRO DO MOTOR',18,14,12,C.mut,'left',true);
+
+    var MX0=30, MX1=428, MY=96, MH=52;              // coletor
+    var PX0=366, PX1=426, PORT_B=200;               // duto de admissão
+    var EX0=436, EX1=488;                           // duto de escape
+    var HEAD=200, CY0=214, CY1=352;                 // cabeçote e cilindro
+    var CB0=336, CB1=484;                           // paredes do cilindro
+    var VA=396, VE=462;                             // eixos das válvulas
+
+    // ---- coletor ----
+    g.fillStyle=corPressao(p);g.fillRect(MX0,MY,MX1-MX0,MH);
+    g.fillStyle='#2b3746';
+    g.fillRect(MX0,MY-14,MX1-MX0,14);g.fillRect(MX0,MY+MH,PX0-MX0,14);
+    g.strokeStyle=C.metal;g.lineWidth=3;g.strokeRect(MX0,MY,MX1-MX0,MH);
+    txt('COLETOR DE ADMISSÃO',MX0+6,MY-36,12,C.mut,'left',true);
+    // duto até a válvula
+    g.fillStyle=corPressao(p);g.fillRect(PX0,MY+MH,PX1-PX0,PORT_B-(MY+MH));
+    g.strokeStyle=C.metal;g.lineWidth=3;
+    g.beginPath();g.moveTo(PX0,MY+MH);g.lineTo(PX0,PORT_B);
+    g.moveTo(PX1,MY+MH);g.lineTo(PX1,PORT_B);g.stroke();
+    // borboleta
+    var bx=MX0+64, ang=rad(88-st.T/100*80);
+    g.strokeStyle='#c3ccd9';g.lineWidth=8;g.lineCap='round';
+    g.beginPath();
+    g.moveTo(bx-Math.cos(ang)*(MH/2-3),MY+MH/2-Math.sin(ang)*(MH/2-3));
+    g.lineTo(bx+Math.cos(ang)*(MH/2-3),MY+MH/2+Math.sin(ang)*(MH/2-3));
+    g.stroke();g.lineCap='butt';
+    txt('borboleta',bx,MY+MH+22,12,C.mut,'center',true);
+    // ar entrando
+    var forca=Math.max(0,(BARO-p)/BARO)*(0.12+0.88*st.T/100);
+    var np=Math.round(4+24*forca);
+    var h1=function(z){var v=Math.sin(z*12.9898)*43758.5453;return v-Math.floor(v);};
+    g.fillStyle=C.ar;
+    for(var i=0;i<np;i++){
+      var u=((h1(i)+st.ang*0.004*(0.4+3*forca))%1);
+      g.globalAlpha=0.30+0.5*forca;
+      g.beginPath();g.arc(MX0+4+u*(MX1-MX0-8),MY+8+h1(i+31)*(MH-16),1.6+1.6*forca,0,6.283);g.fill();
+    }
+    g.globalAlpha=1;
+    g.strokeStyle='rgba(96,200,255,'+(0.25+0.6*forca)+')';g.lineWidth=3;
+    g.beginPath();g.moveTo(MX0-24,MY+MH/2);g.lineTo(MX0-6,MY+MH/2);g.stroke();
+    g.beginPath();g.moveTo(MX0-13,MY+MH/2-6);g.lineTo(MX0-6,MY+MH/2);g.lineTo(MX0-13,MY+MH/2+6);g.stroke();
+    // tomada do MAP
+    var mpx=MX0+(MX1-MX0)*0.80;
+    g.strokeStyle='#6b7686';g.lineWidth=7;
+    g.beginPath();g.moveTo(mpx,MY);g.lineTo(mpx,58);g.stroke();
+    rr(mpx-52,22,104,34,7,'#22303f',C.roxo,2);
+    txt('MAP',mpx,29,14,C.roxo,'center',true);
+
+    // ---- duto de escape ----
+    g.fillStyle='#3a2f2a';g.fillRect(EX0,MY+MH+8,EX1-EX0,PORT_B-(MY+MH)-8);
+    g.strokeStyle=C.metal;g.lineWidth=3;g.strokeRect(EX0,MY+MH+8,EX1-EX0,PORT_B-(MY+MH)-8);
+    txt('escape',EX1+8,MY+MH+16,12,C.mut,'left',true);
+
+    // ---- cabeçote, cilindro, pistão ----
+    var crown=226+(1-Math.cos(rad(a)))/2*78;
+    g.fillStyle=(la>0.02)?corPressao(p):'#3a3046';
+    g.fillRect(CB0,CY0,CB1-CB0,crown-CY0);
+    g.fillStyle='#2b3746';g.fillRect(CB0-12,HEAD,CB1-CB0+24,CY0-HEAD);
+    g.fillStyle='#7f8b9c';g.fillRect(CB0,crown,CB1-CB0,36);
+    g.strokeStyle=C.metalL;g.lineWidth=2;g.strokeRect(CB0,crown,CB1-CB0,36);
+    g.strokeStyle=C.metal;g.lineWidth=3;g.strokeRect(CB0,CY0,CB1-CB0,CY1-CY0);
+    g.strokeStyle='#8d99aa';g.lineWidth=6;
+    g.beginPath();g.moveTo((CB0+CB1)/2,crown+36);g.lineTo((CB0+CB1)/2,CY1-3);g.stroke();
+    txt('pistão',CB1+10,crown+8,12,C.mut,'left',true);
+
+    // ---- válvulas ----
+    function valv(vx,lift,cor,rot,topo){
+      var vy=CY0+lift*24, hw=26;
+      g.fillStyle=C.metalL;g.fillRect(vx-4,topo,8,vy-topo);
+      g.beginPath();g.moveTo(vx-hw,vy-10);g.lineTo(vx+hw,vy-10);
+      g.lineTo(vx+hw-8,vy+2);g.lineTo(vx-hw+8,vy+2);g.closePath();
+      g.fillStyle=lift>0.02?cor:'#8f9aa9';g.fill();
+      g.strokeStyle=C.metalL;g.lineWidth=2;g.stroke();
+      txt(rot,vx-34,MY+MH+18,11,lift>0.02?cor:C.mut,'right',true);
+    }
+    valv(VE,le,'#e0956f','esc',MY+MH+14);
+    valv(VA,la,'#7fd6a8','adm',MY+MH+6);
+
+    // ---- estado ----
+    var est,ec;
+    if(aberta(a)){est='VÁLVULA ABERTA · o pistão está puxando o coletor';ec=C.grn;}
+    else {est='VÁLVULA FECHADA · o coletor enche de volta pela borboleta';ec=C.acc;}
+    rr(24,364,552,42,8,'rgba(255,255,255,.03)',ec,2);
+    g.fillStyle=ec;g.beginPath();g.arc(48,385,8,0,6.283);g.fill();
+    txt(est,66,375,14,ec,'left',true);
+    g.restore();
+  }
+
+  // ---------------- coluna vácuo x pressão ----------------
+  function coluna(x0,y0,w,h){
+    var p=pressao(st.ang), vac=BARO-p, c=ciclo();
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('PRESSÃO E VÁCUO',x0+16,y0+14,12,C.mut,'left',true);
+    var bx=x0+w/2-24, by0=y0+62, by1=y0+h-138, bw=48;
+    var Y=function(k){return by1-(k/BARO)*(by1-by0);};
+    rr(bx,by0,bw,by1-by0,10,'#101a26','#2c3a4c',2);
+    g.fillStyle='rgba(176,140,255,.20)';
+    g.fillRect(bx+2,Y(c.max),bw-4,Y(c.min)-Y(c.max));
+    g.fillStyle=C.roxo;g.fillRect(bx+2,Y(p),bw-4,by1-Y(p)-2);
+    g.strokeStyle=C.yel;g.lineWidth=3;
+    g.beginPath();g.moveTo(bx-8,Y(c.med));g.lineTo(bx+bw+8,Y(c.med));g.stroke();
+    for(var k=0;k<=100;k+=20){
+      g.strokeStyle='#2c3a4c';g.lineWidth=1;
+      g.beginPath();g.moveTo(bx-7,Y(k));g.lineTo(bx,Y(k));g.stroke();
+      txt(k+'',bx-11,Y(k)-8,11,C.mut,'right');
+      txt(((BARO-k)/100).toFixed(2).replace('.',','),bx+bw+11,Y(k)-8,11,'#9282bd','left');
+    }
+    txt('kPa',bx-11,by0-22,11,C.roxo,'right',true);
+    txt('bar',bx+bw+11,by0-22,11,'#9282bd','left',true);
+    txt('PRESSÃO ABSOLUTA',x0+16,y0+h-118,11,C.mut,'left',true);
+    txt(Math.round(p)+' kPa',x0+16,y0+h-100,24,C.roxo,'left',true,true);
+    txt('VÁCUO',x0+16,y0+h-58,11,C.mut,'left',true);
+    txt((vac/100).toFixed(2).replace('.',',')+' bar',x0+16,y0+h-40,24,C.yel,'left',true,true);
+  }
+
+  // ---------------- cartões ----------------
+  function cartoes(x0,y0,w,h){
+    var c=ciclo(), p=pressao(st.ang);
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('O QUE O SENSOR ENTREGA',x0+18,y0+14,12,C.mut,'left',true);
+    var linhas=[
+      ['Pressão neste instante',Math.round(p)+' kPa',C.roxo],
+      ['Tensão neste instante',volts(p).toFixed(2).replace('.',',')+' V',C.acc],
+      ['Fundo do ciclo (mais vácuo)',Math.round(c.min)+' kPa',C.grn],
+      ['Topo do ciclo (mais cheio)',Math.round(c.max)+' kPa',C.grn],
+      ['Média — é o que a ECU usa',Math.round(c.med)+' kPa',C.yel],
+      ['Vácuo médio',((BARO-c.med)/100).toFixed(2).replace('.',',')+' bar',C.yel],
+      ['Rotação',Math.round(st.N/50)*50+' rpm',C.fg],
+      ['Tempo de um ciclo (720°)',(120000/st.N).toFixed(0)+' ms',C.fg]
+    ];
+    var y=y0+42;
+    for(var i=0;i<linhas.length;i++){
+      txt(linhas[i][0],x0+18,y+4,13,'#c3cede');
+      txt(linhas[i][1],x0+w-18,y,16,linhas[i][2],'right',true,true);
+      y+=34;
+    }
+    txt('A atmosfera aqui vale '+Math.round(BARO)+' kPa. O vácuo é',x0+18,y+10,12,C.mut);
+    txt('só a diferença entre ela e o que o sensor mede.',x0+18,y+28,12,C.mut);
+  }
+
+  // ---------------- onda ao longo dos 720° ----------------
+  function onda720(x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('PRESSÃO NO COLETOR AO LONGO DOS 720° — E ISSO SE REPETE SEM PARAR',
+        x0+18,y0+14,12,C.mut,'left',true);
+    var gx0=x0+58,gx1=x0+w-18,gy0=y0+40,gy1=y0+h-46;
+    rr(gx0,gy0,gx1-gx0,gy1-gy0,6,'#0a1612','#223c32',2);
+    var X=function(a){return gx0+4+a/720*(gx1-gx0-8);},
+        Y=function(k){return gy1-8-k/115*(gy1-gy0-16);};
+    // tempos do motor
+    var tempos=[[0,180,'ADMISSÃO','rgba(66,216,140,.10)'],
+                [180,360,'COMPRESSÃO','rgba(0,176,255,.07)'],
+                [360,540,'COMBUSTÃO','rgba(255,86,86,.07)'],
+                [540,720,'ESCAPE','rgba(146,162,182,.07)']];
+    for(var i=0;i<tempos.length;i++){
+      g.fillStyle=tempos[i][3];
+      g.fillRect(X(tempos[i][0]),gy0+2,X(tempos[i][1])-X(tempos[i][0]),gy1-gy0-4);
+      txt(tempos[i][2],(X(tempos[i][0])+X(tempos[i][1]))/2,gy1-20,11,'#6d7f96','center',true);
+    }
+    for(var a=0;a<=720;a+=90){
+      g.strokeStyle='#1c3a30';g.lineWidth=1;
+      g.beginPath();g.moveTo(X(a),gy0);g.lineTo(X(a),gy1);g.stroke();
+      txt(a+'°',X(a),gy1+6,11,C.mut,'center');
+    }
+    for(var k=20;k<=100;k+=20){
+      g.strokeStyle='#18302a';g.lineWidth=1;
+      g.beginPath();g.moveTo(gx0,Y(k));g.lineTo(gx1,Y(k));g.stroke();
+      txt(k+'',gx0-10,Y(k)-8,11,C.mut,'right');
+    }
+    txt('kPa',gx0-10,gy0-2,11,C.mut,'right',true);
+    // atmosferica
+    g.strokeStyle='rgba(66,216,140,.9)';g.lineWidth=2;g.setLineDash([7,6]);
+    g.beginPath();g.moveTo(gx0+4,Y(BARO));g.lineTo(gx1-4,Y(BARO));g.stroke();g.setLineDash([]);
+    txt('pressão atmosférica '+Math.round(BARO)+' kPa',gx0+10,Y(BARO)-19,12,C.grn,'left',true);
+    // area do vacuo
+    g.fillStyle='rgba(255,214,64,.10)';g.beginPath();
+    g.moveTo(X(0),Y(BARO));
+    for(var a2=0;a2<=720;a2+=2) g.lineTo(X(a2),Y(pressao(a2)));
+    g.lineTo(X(720),Y(BARO));g.closePath();g.fill();
+    // curva
+    g.strokeStyle=C.roxo;g.lineWidth=3;g.beginPath();
+    for(var a3=0;a3<=720;a3+=2){ a3===0?g.moveTo(X(a3),Y(pressao(a3))):g.lineTo(X(a3),Y(pressao(a3))); }
+    g.stroke();
+    // marcas da valvula
+    [[FECHA,'válvula fecha',C.red],[ABRE,'válvula abre',C.grn]].forEach(function(m){
+      g.strokeStyle=m[2];g.lineWidth=2;g.setLineDash([4,4]);
+      g.beginPath();g.moveTo(X(m[0]),gy0+4);g.lineTo(X(m[0]),gy1-4);g.stroke();g.setLineDash([]);
+      txt(m[1],X(m[0])+(m[0]>600?-6:6),gy0+8,12,m[2],m[0]>600?'right':'left',true);
+    });
+    txt('aqui o pistão puxa',X(105),gy0+34,12,'#9fe0bd','center',true);
+    txt('aqui o coletor enche de volta',X(470),gy0+34,12,'#9fb8e0','center',true);
+    txt('esta área amarela é o vácuo',X(330),Y(BARO)+16,12,C.yel,'center',true);
+    // cursor
+    g.strokeStyle='rgba(255,255,255,.7)';g.lineWidth=2;
+    g.beginPath();g.moveTo(X(st.ang),gy0);g.lineTo(X(st.ang),gy1);g.stroke();
+    g.fillStyle=C.fg;g.beginPath();g.arc(X(st.ang),Y(pressao(st.ang)),6,0,6.283);g.fill();
+  }
+
+  function layout(){
+    var estreito=window.innerWidth<980;
+    var W=estreito?820:1200,H=estreito?1560:700;
+    if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}
+    return estreito
+      ? {W:W,H:H,mot:[16,16,788,470],col:[16,502,380,420],car:[412,502,392,420],
+         ond:[16,938,788,340]}
+      : {W:W,H:H,mot:[16,16,600,420],col:[632,16,200,420],car:[848,16,336,420],
+         ond:[16,452,1168,232]};
+  }
+
+  function frame(){
+    var alvo=1400+7600*Math.pow(st.T/100,0.95);
+    st.N+=(alvo-st.N)*0.04;
+    if(st.play){ st.ang=(st.ang+2.2*st.vel)%720; }
+    var L=layout(), av=document.getElementById('semjs');
+    if(av) av.style.display='none';
+    g.fillStyle='#0b111a';g.fillRect(0,0,L.W,L.H);
+    motor(L.mot[0],L.mot[1],L.mot[2],L.mot[3]);
+    coluna(L.col[0],L.col[1],L.col[2],L.col[3]);
+    cartoes(L.car[0],L.car[1],L.car[2],L.car[3]);
+    onda720(L.ond[0],L.ond[1],L.ond[2],L.ond[3]);
+    if(!st.play){g.strokeStyle=C.yel;g.lineWidth=6;g.strokeRect(3,3,L.W-6,L.H-6);}
+    if(st.play) document.getElementById('sAng').value=Math.round(st.ang);
+    document.getElementById('angLab').textContent=Math.round(st.ang)+'°';
+    requestAnimationFrame(frame);
+  }
+
+  var sT=document.getElementById('sT'), sAng=document.getElementById('sAng'),
+      bp=document.getElementById('bPlay');
+  function sync(){
+    st.T=+sT.value;
+    document.getElementById('vT').textContent=st.T+' %';
+    var e=document.getElementById('tTag');
+    if(st.T<=3){e.textContent='marcha lenta';e.style.color='#42d88c';}
+    else if(st.T<=60){e.textContent='carga parcial';e.style.color='#ffd640';}
+    else {e.textContent='bem aberta';e.style.color='#ffa528';}
+  }
+  function setPlay(v){st.play=v;bp.innerHTML=v?'PAUSAR':'▶&nbsp; RODAR';bp.classList.toggle('on',v);}
+  sT.addEventListener('input',sync);
+  sAng.addEventListener('input',function(){setPlay(false);st.ang=+sAng.value;});
+  bp.onclick=function(){setPlay(!st.play);};
+  document.getElementById('bRst').onclick=function(){st.ang=0;setPlay(true);};
+  cv.addEventListener('click',function(){setPlay(!st.play);});
+  function liga(sel,attr,fn){
+    var bs=document.querySelectorAll(sel);
+    for(var i=0;i<bs.length;i++)(function(b){b.onclick=function(){fn(b.getAttribute(attr),b);};})(bs[i]);
+  }
+  liga('button[data-t]','data-t',function(v){sT.value=v;sync();});
+  liga('button.vel','data-v',function(v,b){
+    st.vel=+v;
+    var bs=document.querySelectorAll('button.vel');
+    for(var i=0;i<bs.length;i++) bs[i].classList.remove('on');
+    b.classList.add('on');
+  });
+  sync(); frame();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonda Lambda — malha fechada (moto)</title>
+<style>
+  :root{--bg:#0d131b;--panel:#18222f;--panel2:#1e2a39;--line:#2a3a4d;--fg:#e9eff6;
+        --mut:#92a2b6;--acc:#00b0ff;--fuel:#ffa528;--grn:#42d88c;--yel:#ffd640;
+        --red:#ff5656;--roxo:#b08cff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+  header{padding:18px 26px 15px;border-bottom:3px solid var(--grn);background:var(--panel)}
+  h1{margin:0;font-size:22px}
+  header p{margin:6px 0 0;color:var(--mut);font-size:14px}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px}
+  canvas{width:100%;height:auto;display:block;border-radius:12px;background:#0b111a}
+  .barra{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);
+         border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
+         gap:14px;margin-top:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card h3{margin:0 0 8px;font-size:12px;letter-spacing:1.4px;color:var(--mut);text-transform:uppercase}
+  .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .val{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;margin:12px 0 6px;accent-color:var(--acc);height:38px;
+                    -webkit-appearance:none;background:transparent;touch-action:none}
+  input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;
+    background:linear-gradient(#2c3a4c,#22303f)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;
+    border-radius:50%;background:var(--acc);border:3px solid #0d131b;margin-top:-11px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:#2c3a4c}
+  input[type=range]::-moz-range-thumb{width:30px;height:30px;border:3px solid #0d131b;
+    border-radius:50%;background:var(--acc)}
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+  button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+         border-radius:10px;padding:11px 14px;font-size:14px;cursor:pointer;font-weight:600;
+         min-height:46px;touch-action:manipulation}
+  button:hover{border-color:var(--acc)}
+  button.on{background:#003b5c;border-color:var(--acc);color:#bfe9ff}
+  button.falha.on{background:#4a1420;border-color:var(--red);color:#ffc9c9}
+  button.big{font-size:16px;padding:13px 18px;min-height:52px;min-width:130px}
+  .nota{color:var(--mut);font-size:12px;margin-top:10px;line-height:1.5}
+  footer{color:#5a6472;font-size:12px;padding:8px 26px 26px;text-align:center}
+  #semjs{background:#3a2a0c;border:2px solid var(--fuel);color:#ffd9a0;border-radius:12px;
+         padding:22px;font-size:16px;line-height:1.6;margin-bottom:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Sonda lambda — a ECU corrigindo em malha fechada</h1>
+  <p>Moto monocilíndrica com sonda de banda estreita aquecida. A sonda é a única que mede o resultado da queima.</p>
+</header>
+
+<div class="wrap">
+  <div class="barra">
+    <button id="bPlay" class="big on">PAUSAR</button>
+    <span style="color:#92a2b6;font-size:13px">velocidade:</span>
+    <button class="vel" data-v="1">Normal</button>
+    <button class="vel on" data-v="0.4">Lenta</button>
+    <button class="vel" data-v="0.15">Bem devagar</button>
+    <button id="bReset" class="big">Zerar tudo</button>
+  </div>
+
+  <div id="semjs">
+    <b>Esta página não está rodando.</b><br>
+    Você abriu o arquivo por um visualizador que bloqueia animações.<br><br>
+    <b>Abra assim:</b> salve em <i>Downloads</i> &rarr; abra o <b>Chrome</b> &rarr;
+    menu <b>⋮</b> &rarr; <b>Downloads</b> &rarr; toque no arquivo.
+  </div>
+
+  <canvas id="cv" width="1200" height="670"></canvas>
+
+  <div class="grade">
+    <div class="card">
+      <h3>Condição do motor</h3>
+      <div class="btns">
+        <button class="cond" data-c="lenta">Marcha lenta</button>
+        <button class="cond on" data-c="cruzeiro">Cruzeiro</button>
+        <button class="cond" data-c="wot">Acelerador todo aberto</button>
+        <button class="cond" data-c="frio">Motor frio</button>
+        <button class="cond" data-c="desac">Desaceleração</button>
+      </div>
+      <div class="nota" id="notaCond">Carga parcial com motor quente: é onde a malha fechada mais trabalha.</div>
+    </div>
+
+    <div class="card">
+      <h3>Defeito para provocar</h3>
+      <div class="btns">
+        <button class="falha on" data-f="0">Sem defeito</button>
+        <button class="falha" data-f="1">Entrada de ar falsa</button>
+        <button class="falha" data-f="2">Bico vazando</button>
+        <button class="falha" data-f="3">Bico sujo</button>
+        <button class="falha" data-f="4">Sonda preguiçosa</button>
+        <button class="falha" data-f="5">Aquecedor queimado</button>
+      </div>
+      <div class="nota" id="notaFalha">Sistema íntegro.</div>
+    </div>
+
+    <div class="card">
+      <h3>Gravidade do defeito</h3>
+      <div class="row"><span class="val" id="vG">0 %</span><span id="gTag" style="font-size:14px"></span></div>
+      <input type="range" id="sG" min="0" max="100" step="1" value="0">
+      <h3 style="margin-top:14px">Combustível</h3>
+      <div class="btns">
+        <button class="comb on" data-k="gas">Gasolina 14,7:1</button>
+        <button class="comb" data-k="eta">Etanol 9,0:1</button>
+      </div>
+      <div class="nota">Aumente a gravidade devagar e acompanhe a correção subindo até bater no limite.</div>
+    </div>
+  </div>
+</div>
+<footer>HP Instrutor · Injeção Eletrônica — sinal oscilando é sinal saudável; sinal parado é que dá problema</footer>
+
+<script>
+(function(){
+  var cv=document.getElementById('cv'), g=cv.getContext('2d');
+  var st={cond:'cruzeiro',f:0,grav:0,comb:'gas',play:true,vel:0.4,
+          fase:0,trim:0,bufV:[],bufT:[],BUF:280};
+  var C={panel:'#18222f',panel2:'#1e2a39',line:'#2a3a4d',fg:'#e9eff6',mut:'#92a2b6',
+         acc:'#00b0ff',fuel:'#ffa528',grn:'#42d88c',yel:'#ffd640',red:'#ff5656',
+         roxo:'#b08cff',metal:'#9ca8b8',metalL:'#c6d0de'};
+
+  var CONDS={lenta:{n:1400,ti:2.2,nome:'MARCHA LENTA'},
+             cruzeiro:{n:4200,ti:3.0,nome:'CRUZEIRO'},
+             wot:{n:8000,ti:9.5,nome:'ACELERADOR TODO ABERTO'},
+             frio:{n:1600,ti:4.6,nome:'MOTOR FRIO'},
+             desac:{n:3000,ti:0,nome:'DESACELERAÇÃO'}};
+
+  function alvoAC(){ return st.comb==='eta'?9.0:14.7; }
+  function erroMistura(){                       // + = pobre, − = rica
+    var G=st.grav;
+    if(st.f===1) return  G*0.38;                // entrada de ar falsa
+    if(st.f===2) return -G*0.38;                // bico vazando
+    if(st.f===3) return  G*0.32;                // bico sujo
+    return 0;
+  }
+  function preguicosa(){ return st.f===4? st.grav/100 : 0; }
+  function semAquecedor(){ return st.f===5 && st.grav>15; }
+  function malhaFechada(){
+    if(st.cond==='wot'||st.cond==='frio'||st.cond==='desac') return false;
+    if(semAquecedor()) return false;
+    return true;
+  }
+  function estado(){
+    var m=malhaFechada();
+    var motivo='';
+    if(!m){
+      if(semAquecedor()) motivo='sonda fria — aquecedor não funciona';
+      else if(st.cond==='wot') motivo='plena carga — a ECU enriquece pela tabela';
+      else if(st.cond==='frio') motivo='motor frio — a sonda ainda não trabalha';
+      else motivo='corte de combustível na desaceleração';
+    }
+    return {fechada:m,motivo:motivo};
+  }
+  function lambdaBase(){                        // sem a oscilação
+    var e=erroMistura(), res=e-st.trim;         // o que a correção não deu conta
+    if(!malhaFechada()){
+      if(st.cond==='wot') return 0.88+e/100*0.8;
+      if(st.cond==='frio') return 0.80+e/100*0.8;
+      if(st.cond==='desac') return 1.60;
+      return 1+e/100*0.8;                       // sem sonda: erro fica solto
+    }
+    return 1+res/100*0.8;
+  }
+  function oscila(){                            // amplitude do vai e vem
+    if(!malhaFechada()||st.cond==='desac') return 0;
+    return 0.022*(1-0.55*preguicosa());
+  }
+  function freq(){                              // Hz do ciclo da malha
+    var n=CONDS[st.cond].n;
+    return (0.5+n/2600)*(1-0.65*preguicosa());
+  }
+  function tensao(lam){
+    var k=95-70*preguicosa();
+    return Math.max(0.02,Math.min(0.98,0.45+0.42*Math.tanh((1-lam)*k)));
+  }
+  function agora(){
+    var lam=lambdaBase()+oscila()*Math.sin(st.fase*2*Math.PI);
+    var v=tensao(lam);
+    var base=CONDS[st.cond].ti*(st.comb==='eta'?1.38:1);
+    var ti=base*(1+st.trim/100)*(1-0.13*Math.tanh(Math.sin((st.fase-0.14)*2*Math.PI)*2.2)*(malhaFechada()?1:0));
+    if(st.cond==='desac') ti=0;
+    return {lam:lam,v:v,ti:ti,ac:lam*alvoAC()};
+  }
+
+  function rr(x,y,w,h,r,fill,stroke,lw){
+    g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);
+    g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();
+    if(fill){g.fillStyle=fill;g.fill();}
+    if(stroke){g.strokeStyle=stroke;g.lineWidth=lw||2;g.stroke();}
+  }
+  function txt(s,x,y,size,color,align,bold,mono){
+    g.font=(bold?'700 ':'')+size+'px '+(mono?'ui-monospace,Consolas,monospace':'Segoe UI,Arial,sans-serif');
+    g.fillStyle=color;g.textAlign=align||'left';g.textBaseline='top';g.fillText(s,x,y);
+  }
+
+  // ---------------- escape e sonda ----------------
+  function escape(x0,y0,w,h){
+    var a=agora(), est=estado();
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('ESCAPE E SONDA',x0+16,y0+14,12,C.mut,'left',true);
+    var ty=y0+120, th=54;
+    rect0(x0+26,y0+76,82,136,'#2e3a4a');
+    txt('MOTOR',x0+67,y0+138,13,C.mut,'center',true);
+    g.fillStyle='#1e1a1a';g.fillRect(x0+108,ty,(x0+w-30)-(x0+108),th);
+    g.strokeStyle=C.metal;g.lineWidth=2;g.strokeRect(x0+108,ty,(x0+w-30)-(x0+108),th);
+    // gases: cor conforme a mistura
+    var rica=a.lam<1;
+    var h1=function(k){var v=Math.sin(k*12.9898)*43758.5453;return v-Math.floor(v);};
+    for(var i=0;i<26;i++){
+      var u=((h1(i)+st.fase*0.6)%1);
+      var px=x0+114+u*((x0+w-40)-(x0+114));
+      var py=ty+10+h1(i+13)*(th-20);
+      var oxig=h1(i+7) < Math.max(0.05,Math.min(0.95,(a.lam-0.9)*3));
+      g.fillStyle=oxig?C.grn:C.fuel;
+      g.beginPath();g.arc(px,py,3.2,0,6.283);g.fill();
+    }
+    txt('gases da queima',x0+114,ty+th+10,12,C.mut);
+    // sonda
+    var sx=x0+248;
+    var cs=est.fechada?C.grn:C.mut;
+    rr(sx-28,ty-76,56,54,7,'#22303f',cs,2);
+    txt('SONDA',sx,ty-70,12,cs,'center',true);
+    txt(a.v.toFixed(2).replace('.',',')+' V',sx,ty-50,15,C.fg,'center',true,true);
+    g.fillStyle=C.metal;g.fillRect(sx-11,ty-22,22,24);
+    g.fillStyle='#ced6e4';
+    g.beginPath();g.moveTo(sx-8,ty+2);g.lineTo(sx+8,ty+2);g.lineTo(sx+5,ty+30);g.lineTo(sx-5,ty+30);
+    g.closePath();g.fill();
+    for(var p=0;p<4;p++){g.fillStyle=C.metalL;g.fillRect(sx-19+p*11,ty-92,6,16);}
+    // aquecedor
+    var aq=!semAquecedor();
+    txt('aquecedor',sx+40,ty-92,12,aq?C.fuel:C.red,'left',true);
+    txt(aq?'ligado · sonda quente':'sem funcionar · sonda fria',sx+40,ty-74,12,
+        aq?C.mut:C.red,'left');
+    // catalisador
+    rr(x0+300,ty-6,(x0+w-30)-(x0+300),th+12,6,'#282c34',C.metal,2);
+    for(var k=0;k<7;k++){
+      g.strokeStyle='#464c58';g.lineWidth=2;
+      g.beginPath();g.moveTo(x0+308+k*14,ty);g.lineTo(x0+308+k*14,ty+th);g.stroke();
+    }
+    txt('catalisador',x0+w-34,ty+th+10,12,C.mut,'right');
+    // barra de oxigenio
+    var by=y0+250;
+    rr(x0+26,by,w-52,84,10,C.panel2,C.line,2);
+    txt('OXIGÊNIO QUE SOBROU NO ESCAPE',x0+44,by+14,12,C.mut,'left',true);
+    var f=Math.max(0.03,Math.min(1,(a.lam-0.86)/0.5));
+    rr(x0+44,by+42,w-88,18,9,'#26303e');
+    rr(x0+44,by+42,(w-88)*f,18,9,a.lam<0.99?C.fuel:(a.lam>1.02?C.acc:C.grn));
+    txt('pouco = rica',x0+44,by+64,11,'#c8965a');
+    txt('muito = pobre',x0+w-44,by+64,11,'#8fc8ff','right');
+    // estado da malha
+    var ey=y0+352;
+    rr(x0+26,ey,w-52,h-(ey-y0)-26,10,'rgba(255,255,255,.03)',est.fechada?C.grn:C.yel,2);
+    txt(est.fechada?'MALHA FECHADA':'MALHA ABERTA',x0+44,ey+14,17,
+        est.fechada?C.grn:C.yel,'left',true);
+    if(est.fechada){
+      txt('A ECU está lendo a sonda e corrigindo o',x0+44,ey+42,13,'#c3cede');
+      txt('combustível a cada oscilação.',x0+44,ey+60,13,'#c3cede');
+    }else{
+      txt(est.motivo,x0+44,ey+42,13,C.yel);
+      txt('A moto anda só pela tabela, sem conferir',x0+44,ey+62,13,'#c3cede');
+      txt('o resultado da queima.',x0+44,ey+80,13,'#c3cede');
+    }
+  }
+  function rect0(x,y,w,h,c){ rr(x,y,w,h,6,c,C.metal,2); }
+
+  // ---------------- osciloscópio duplo ----------------
+  function scope(x0,y0,w,h){
+    var a=agora(), est=estado();
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('A CONVERSA ENTRE A SONDA E A ECU',x0+16,y0+14,12,C.mut,'left',true);
+    var gx0=x0+60,gx1=x0+w-18;
+    // CH1
+    var y0a=y0+40,y1a=y0+40+(h-70)*0.5;
+    rr(gx0,y0a,gx1-gx0,y1a-y0a,4,'#0a1612','#223c32',2);
+    var Y1=function(v){return y1a-6-v*(y1a-y0a-12);};
+    g.strokeStyle='#18302a';g.lineWidth=1;
+    for(var k=1;k<10;k++){var x=gx0+k*(gx1-gx0)/10;g.beginPath();g.moveTo(x,y0a);g.lineTo(x,y1a);g.stroke();}
+    g.strokeStyle='rgba(255,214,64,.8)';g.lineWidth=2;g.setLineDash([6,6]);
+    g.beginPath();g.moveTo(gx0,Y1(0.45));g.lineTo(gx1,Y1(0.45));g.stroke();g.setLineDash([]);
+    txt('0,45 V',gx0+6,Y1(0.45)-18,11,C.yel,'left',true);
+    txt('rica',gx0+6,y0a+6,11,'#c8965a','left',true);
+    txt('pobre',gx0+6,y1a-20,11,'#8fc8ff','left',true);
+    txt('SINAL DA SONDA',gx0+70,y0a+6,12,C.grn,'left',true);
+    txt(a.v.toFixed(2).replace('.',',')+' V',gx1-8,y0a+6,15,C.grn,'right',true,true);
+    txt('1 V',gx0-8,y0a,11,C.mut,'right');txt('0 V',gx0-8,y1a-16,11,C.mut,'right');
+    desenhaBuf(st.bufV,gx0,gx1,Y1,C.grn,1);
+    // CH2
+    var y0b=y1a+12,y1b=y0+h-24;
+    rr(gx0,y0b,gx1-gx0,y1b-y0b,4,'#0a1612','#223c32',2);
+    var tiMax=Math.max(3,CONDS[st.cond].ti*(st.comb==='eta'?1.38:1)*1.75);
+    var Y2=function(v){return y1b-6-v/tiMax*(y1b-y0b-12);};
+    g.strokeStyle='#18302a';g.lineWidth=1;
+    for(var k2=1;k2<10;k2++){var x2=gx0+k2*(gx1-gx0)/10;g.beginPath();g.moveTo(x2,y0b);g.lineTo(x2,y1b);g.stroke();}
+    txt('TEMPO DE INJEÇÃO QUE A ECU MANDA',gx0+8,y0b+6,12,C.fuel,'left',true);
+    txt(a.ti.toFixed(2).replace('.',',')+' ms',gx1-8,y0b+6,15,C.fuel,'right',true,true);
+    txt(tiMax.toFixed(0)+' ms',gx0-8,y0b,11,C.mut,'right');
+    txt('0',gx0-8,y1b-16,11,C.mut,'right');
+    desenhaBuf(st.bufT,gx0,gx1,Y2,C.fuel,tiMax);
+    if(est.fechada)
+      txt('sobe quando a sonda acusa pobre · desce quando acusa rica',gx0+8,y1b-20,12,'#a08050','left');
+    else
+      txt('sem correção da sonda: valor fixo da tabela',gx0+8,y1b-20,12,C.yel,'left');
+  }
+  function desenhaBuf(buf,gx0,gx1,Y,cor,esc){
+    var n=buf.length; if(n<2) return;
+    g.strokeStyle=cor;g.lineWidth=3;g.beginPath();
+    for(var i=0;i<n;i++){
+      var x=gx0+4+(i/(st.BUF-1))*(gx1-gx0-8), y=Y(buf[i]);
+      i===0?g.moveTo(x,y):g.lineTo(x,y);
+    }
+    g.stroke();
+    g.fillStyle=cor;g.beginPath();
+    g.arc(gx0+4+((n-1)/(st.BUF-1))*(gx1-gx0-8),Y(buf[n-1]),5,0,6.283);g.fill();
+  }
+
+  // ---------------- cartões ----------------
+  function cartoes(x0,y0,w,h){
+    var a=agora();
+    var itens=[['TENSÃO DA SONDA',a.v.toFixed(2).replace('.',','),'volts',C.grn],
+               ['LAMBDA',a.lam.toFixed(2).replace('.',','),
+                (malhaFechada()&&Math.abs(st.trim)<20)?'oscilando em torno de 1,00':
+                (a.lam<0.98?'mistura rica':(a.lam>1.02?'mistura pobre':'no ponto')),C.roxo],
+               ['AR / COMBUSTÍVEL',a.ac.toFixed(1).replace('.',','),
+                'alvo '+alvoAC().toFixed(1).replace('.',',')+':1',C.acc],
+               ['CORREÇÃO DE COMBUSTÍVEL',(st.trim>=0?'+':'')+st.trim.toFixed(0),'por cento',
+                Math.abs(st.trim)>20?C.red:(Math.abs(st.trim)>8?C.yel:C.grn)]];
+    var cw=(w-3*12)/4;
+    for(var i=0;i<4;i++){
+      var x=x0+i*(cw+12);
+      rr(x,y0,cw,h,12,C.panel,C.line,1);
+      txt(itens[i][0],x+14,y0+12,11,C.mut,'left',true);
+      txt(itens[i][1],x+14,y0+34,32,itens[i][3],'left',true,true);
+      txt(itens[i][2],x+14,y0+h-26,11,C.mut,'left');
+    }
+  }
+
+  // ---------------- barra de correção ----------------
+  function barraTrim(x0,y0,w,h){
+    rr(x0,y0,w,h,12,C.panel,C.line,1);
+    txt('CORREÇÃO DE COMBUSTÍVEL — ATÉ ONDE A ECU CONSEGUE IR',x0+16,y0+12,12,C.mut,'left',true);
+    var b0=x0+16,b1=x0+w-16,mid=(b0+b1)/2;
+    rr(b0,y0+40,b1-b0,18,9,'#26303e');
+    rr(mid-(b1-b0)*0.16,y0+40,(b1-b0)*0.32,18,9,'#25553f');
+    var px=mid+(st.trim/25)*((b1-b0)/2-10);
+    g.fillStyle=Math.abs(st.trim)>20?C.red:(Math.abs(st.trim)>8?C.yel:C.grn);
+    g.beginPath();g.arc(px,y0+49,11,0,6.283);g.fill();
+    g.strokeStyle='#0d131b';g.lineWidth=3;g.stroke();
+    txt('−25 %  tirando combustível',b0,y0+62,11,'#c88');
+    txt('faixa normal',mid,y0+62,11,'#7fc8a0','center');
+    txt('colocando combustível  +25 %',b1,y0+62,11,'#8fc8a8','right');
+    if(Math.abs(st.trim)>=24){
+      rr(b1-190,y0+8,190,26,7,'#4a1420',C.red,2);
+      txt('LUZ DE INJEÇÃO ACESA',b1-95,y0+13,13,C.red,'center',true);
+    }
+  }
+
+  // ---------------- veredito ----------------
+  function veredito(x0,y0,w,h){
+    var est=estado(), e=erroMistura(), res=e-st.trim, t1,t2,c;
+    if(!est.fechada){c=C.yel;t1='MALHA ABERTA — '+est.motivo.toUpperCase();
+      t2='Aqui a sonda não manda no combustível. Se o defeito for aqui, o scanner não mostra correção nenhuma.';}
+    else if(st.f===4&&st.grav>40){c=C.yel;t1='SONDA PREGUIÇOSA';
+      t2='Repare como a onda ficou lenta e arredondada. A ECU perde o ajuste fino: consumo sobe e o catalisador sofre.';}
+    else if(Math.abs(st.trim)>=24){c=C.red;
+      t1=res>0?'MISTURA POBRE ALÉM DO QUE A ECU CONSEGUE CORRIGIR'
+              :'MISTURA RICA ALÉM DO QUE A ECU CONSEGUE CORRIGIR';
+      t2=res>0?'A correção bateu no limite e ainda falta combustível: falha, tranco e luz acesa. Procure entrada de ar, pressão baixa ou bico sujo.'
+              :'A correção bateu no limite e ainda sobra combustível: cheiro forte, vela preta e luz acesa. Procure bico vazando ou pressão alta.';}
+    else if(Math.abs(st.trim)>8){c=C.yel;
+      t1=st.trim>0?'A ECU ESTÁ COLOCANDO COMBUSTÍVEL A MAIS':'A ECU ESTÁ TIRANDO COMBUSTÍVEL';
+      t2='A moto ainda anda bem porque a sonda está compensando. É exatamente aqui que o defeito se esconde — só o scanner denuncia.';}
+    else{c=C.grn;t1='MALHA FECHADA — SISTEMA SAUDÁVEL';
+      t2='A sonda cruza o ponto ideal várias vezes por segundo e a correção está perto de zero. Oscilar é o funcionamento certo.';}
+    rr(x0,y0,w,h,12,'rgba(255,255,255,0.03)',c,2);
+    g.fillStyle=c;g.beginPath();g.arc(x0+32,y0+h/2,11,0,6.283);g.fill();
+    txt(t1,x0+54,y0+16,17,c,'left',true);
+    txt(t2,x0+54,y0+44,13,'#c3cede');
+  }
+
+  function layout(){
+    var estreito=window.innerWidth<980;
+    var W=estreito?820:1200,H=estreito?1202:670;
+    if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}
+    return estreito
+      ? {W:W,H:H,esc:[16,16,788,470],sco:[16,502,788,320],
+         car:[16,838,788,120],tri:[16,974,788,86],ver:[16,1076,788,110]}
+      : {W:W,H:H,esc:[16,16,420,530],sco:[452,16,732,306],
+         car:[452,338,732,112],tri:[452,466,732,80],ver:[16,562,1168,92]};
+  }
+
+  function frame(){
+    if(st.play){
+      st.fase+=freq()*0.016*st.vel;
+      // a ECU integra a correção até anular o erro (limitada a ±25%)
+      if(malhaFechada()){
+        var alvo=Math.max(-25,Math.min(25,erroMistura()));
+        st.trim+=(alvo-st.trim)*0.012;
+      } else {
+        st.trim+=(0-st.trim)*0.02;
+      }
+      var a=agora();
+      st.bufV.push(a.v); st.bufT.push(a.ti);
+      if(st.bufV.length>st.BUF){st.bufV.shift();st.bufT.shift();}
+    }
+    var L=layout(), av=document.getElementById('semjs');
+    if(av) av.style.display='none';
+    g.fillStyle='#0b111a';g.fillRect(0,0,L.W,L.H);
+    escape(L.esc[0],L.esc[1],L.esc[2],L.esc[3]);
+    scope(L.sco[0],L.sco[1],L.sco[2],L.sco[3]);
+    cartoes(L.car[0],L.car[1],L.car[2],L.car[3]);
+    barraTrim(L.tri[0],L.tri[1],L.tri[2],L.tri[3]);
+    veredito(L.ver[0],L.ver[1],L.ver[2],L.ver[3]);
+    if(!st.play){g.strokeStyle=C.yel;g.lineWidth=6;g.strokeRect(3,3,L.W-6,L.H-6);}
+    requestAnimationFrame(frame);
+  }
+
+  // ---------------- controles ----------------
+  var sG=document.getElementById('sG'), bp=document.getElementById('bPlay');
+  var notasCond={lenta:'Marcha lenta com motor quente: a malha fechada trabalha, mas com pouco fluxo.',
+    cruzeiro:'Carga parcial com motor quente: é onde a malha fechada mais trabalha.',
+    wot:'Plena carga: a ECU sai de malha fechada e enriquece pela tabela, para dar potência e proteger o motor.',
+    frio:'Motor frio: a mistura é rica de propósito e a sonda ainda não tem temperatura para trabalhar.',
+    desac:'Pé fora em giro alto: a ECU corta o combustível. Não há queima, então não há o que a sonda corrigir.'};
+  var notasFalha=['Sistema íntegro.',
+    'Ar entrando sem passar pela borboleta: a queima fica pobre e a ECU precisa repor combustível.',
+    'Bico com vedação ruim ou pressão alta: sobra combustível e a ECU precisa tirar.',
+    'Bico entupido ou pressão baixa: falta combustível e a ECU precisa repor.',
+    'Sonda velha ou contaminada: responde devagar e a ECU perde o ajuste fino.',
+    'Sem aquecimento a sonda não atinge os 350 °C e nunca entra em malha fechada.'];
+  function sync(){
+    st.grav=+sG.value;
+    document.getElementById('vG').textContent=st.grav+' %';
+    var e=document.getElementById('gTag');
+    if(st.f===0){e.textContent='sem defeito selecionado';e.style.color='#92a2b6';}
+    else if(st.grav<25){e.textContent='leve';e.style.color='#42d88c';}
+    else if(st.grav<60){e.textContent='moderado';e.style.color='#ffd640';}
+    else {e.textContent='grave';e.style.color='#ff5656';}
+  }
+  function liga(sel,attr,fn){
+    var bs=document.querySelectorAll(sel);
+    for(var i=0;i<bs.length;i++)(function(b){b.onclick=function(){fn(b.getAttribute(attr),b,sel);};})(bs[i]);
+  }
+  function marca(sel,b){
+    var bs=document.querySelectorAll(sel);
+    for(var i=0;i<bs.length;i++) bs[i].classList.remove('on');
+    b.classList.add('on');
+  }
+  liga('button.cond','data-c',function(v,b){st.cond=v;marca('button.cond',b);
+    document.getElementById('notaCond').textContent=notasCond[v];});
+  liga('button.falha','data-f',function(v,b){st.f=+v;marca('button.falha',b);
+    document.getElementById('notaFalha').textContent=notasFalha[+v];
+    if(+v>0&&st.grav===0){sG.value=45;}
+    sync();});
+  liga('button.comb','data-k',function(v,b){st.comb=v;marca('button.comb',b);});
+  liga('button.vel','data-v',function(v,b){st.vel=+v;marca('button.vel',b);});
+  sG.addEventListener('input',sync);
+  bp.onclick=function(){st.play=!st.play;bp.textContent=st.play?'PAUSAR':'▶ RODAR';
+    bp.classList.toggle('on',st.play);};
+  cv.addEventListener('click',function(){bp.onclick();});
+  document.getElementById('bReset').onclick=function(){
+    st.cond='cruzeiro';st.f=0;st.grav=0;st.comb='gas';st.trim=0;
+    st.bufV=[];st.bufT=[];sG.value=0;
+    marca('button.cond',document.querySelector('button.cond[data-c="cruzeiro"]'));
+    marca('button.falha',document.querySelector('button.falha[data-f="0"]'));
+    marca('button.comb',document.querySelector('button.comb[data-k="gas"]'));
+    document.getElementById('notaCond').textContent=notasCond.cruzeiro;
+    document.getElementById('notaFalha').textContent=notasFalha[0];
+    sync();};
+  sync(); frame();
+})();
+</script>
+</body>
+</html>
